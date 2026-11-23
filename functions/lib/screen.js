@@ -41,6 +41,23 @@ function backtest(h, ind, s, rtFeePct) {
   return trades;
 }
 
+// Seberapa sering harga menyentuh target (TP) atau batas rugi (SL) dalam H candle 1 jam,
+// dihitung dari SEMUA jam di riwayat (bukan hanya saat sinyal), memakai jarak TP/SL saat ini.
+function hitStats(h, tpF, slF, H) {
+  let tp = 0, sl = 0, tot = 0;
+  for (let i = 55; i < h.close.length - H; i++) {
+    const e = h.close[i], t = e * (1 + tpF), l = e * (1 - slF);
+    let res = 0;
+    for (let j = i + 1; j <= i + H; j++) {
+      if (h.low[j] <= l) { res = 2; break; }
+      if (h.high[j] >= t) { res = 1; break; }
+    }
+    tot++; if (res === 1) tp++; else if (res === 2) sl++;
+  }
+  if (!tot) return null;
+  return { tp: Math.round((tp / tot) * 100), sl: Math.round((sl / tot) * 100), n: tot };
+}
+
 export function analyze(symbol, h1, d1, s) {
   if (h1.close.length < 150 || d1.close.length < 30) return { symbol, status: "no_data" };
 
@@ -121,6 +138,7 @@ export function analyze(symbol, h1, d1, s) {
     hourlyUp, dailyUp, setupNow,
     rtFeePct, tpPct, slPct,
     bt: { trades: nT, winRate, winShr, avgNet, profitFactor },
+    hit: { h1: hitStats(h1, tpPct / 100, slPct / 100, 1), d1: hitStats(h1, tpPct / 100, slPct / 100, 7) },
     entry: setupNow ? { price, sl: price - s.slAtr * A, tp: price + s.tpAtr * A } : null,
     score: Math.round(score), verdict, reasons,
   };

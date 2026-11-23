@@ -212,3 +212,8 @@ nav button.active::before { content: ""; position: absolute; top: -1px; width: 2
 .calc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .calc label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 11px; }
 .calc input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 9px; font: 500 15px var(--mono); }
+.s-line { margin: 6px 0; font-size: 14px; line-height: 1.5; } .s-line em { font-style: normal; color: var(--muted); font-size: 12px; }
+.s-odds { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.odds-row { display: grid; grid-template-columns: 92px 1fr 1fr; gap: 6px; font: 500 12.5px var(--mono); margin: 6px 0; } .odds-row span:first-child { color: var(--muted); font-family: var(--body); }
+.s-note { color: #6F8B96; font-size: 12px; line-height: 1.5; margin: 8px 0 0; }
+.s-grid { margin-top: 12px; }

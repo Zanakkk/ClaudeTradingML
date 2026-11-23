@@ -42,12 +42,6 @@ function Card({ r, rank, onOpen, cfg, fee }) {
         <span className={`vbadge ${r.verdict}`}>{VERDICT[r.verdict]}</span>
       </div>
       <div className="s-bar"><i style={{ width: `${r.score}%` }} /></div>
-      <div className="s-grid">
-        <div><small>Rata² bersih</small><b className={r.bt.avgNet >= 0 ? "up" : "down"}>{pct(r.bt.avgNet)}</b></div>
-        <div><small>Target / fee</small><b>{fmt(r.tpPct, 1)}% / {fmt(r.rtFeePct, 1)}%</b></div>
-        <div><small>Gerak 1 jam</small><b>{fmt(r.atrPct, 1)}%</b></div>
-        <div><small>Volume/hari</small><b>{money(r.dollarVol)}</b></div>
-      </div>
       {r.entry && (
         <div className="s-entry">
           <span>Masuk ${fmt(r.entry.price)}</span><span className="down">SL ${fmt(r.entry.sl)}</span><span className="up">TP ${fmt(r.entry.tp)}</span>
@@ -55,16 +49,28 @@ function Card({ r, rank, onOpen, cfg, fee }) {
       )}
       {pl && (
         <div className="s-plan">
-          <div className="eyebrow">Rencana beli</div>
-          <div className="s-grid">
-            <div><small>Beli senilai</small><b>{usd2(pl.pos)} <em>({pl.shares.toFixed(2)} lbr)</em></b></div>
-            <div><small>Harus naik dulu</small><b>{fmt(pl.be, 2)}% (tutup fee)</b></div>
-            <div><small>SL / TP</small><b><span className="down">${fmt(pl.sl)}</span> / <span className="up">${fmt(pl.tp)}</span></b></div>
-            <div><small>Rugi maks → untung bersih</small><b><span className="down">−{usd2(pl.maxLoss)}</span> → <span className="up">+{usd2(pl.net)}</span></b></div>
-          </div>
+          <div className="eyebrow">Versi simpel</div>
+          <p className="s-line"><b>1. Beli</b> senilai <b>{usd2(pl.pos)}</b> <em>({pl.shares.toFixed(2)} lembar, harga ${fmt(r.price)})</em></p>
+          <p className="s-line"><b>2. Jual untung</b> kalau harga sampai <b className="up">${fmt(pl.tp)}</b> → kamu dapat <b className="up">+{usd2(pl.net)}</b> <em>(sudah dipotong fee)</em></p>
+          <p className="s-line"><b>3. Jual rugi</b> kalau harga turun ke <b className="down">${fmt(pl.sl)}</b> → kamu rugi <b className="down">−{usd2(pl.maxLoss)}</b></p>
+          {r.hit?.h1 && (
+            <div className="s-odds">
+              <div className="eyebrow">Peluang dari riwayat saham ini</div>
+              <div className="odds-row"><span>Dalam 1 jam</span><span className="up">kena untung {r.hit.h1.tp}%</span><span className="down">kena rugi {r.hit.h1.sl}%</span></div>
+              <div className="odds-row"><span>Dalam 1 hari</span><span className="up">kena untung {r.hit.d1.tp}%</span><span className="down">kena rugi {r.hit.d1.sl}%</span></div>
+              <p className="s-note">“Kena untung/rugi” = harga menyentuh angka di nomor 2/3. Sisanya: belum menyentuh keduanya. Targetnya biasanya butuh lebih dari 1 jam, jadi siap menunggu atau pasang alarm harga.</p>
+            </div>
+          )}
+          {r.worstDay < -15 && <p className="s-warn">Hati-hati: saham ini pernah anjlok {Math.abs(r.worstDay).toFixed(0)}% dalam sehari. Harga bisa melompat melewati batas rugi, jadi ruginya bisa lebih besar dari {usd2(pl.maxLoss)}.</p>}
           {pl.net <= 0 && <p className="s-warn">Setelah fee, targetnya tidak menyisakan untung. Lewati.</p>}
         </div>
       )}
+      <div className="s-grid">
+        <div><small>Rata² bersih</small><b className={r.bt.avgNet >= 0 ? "up" : "down"}>{pct(r.bt.avgNet)}</b></div>
+        <div><small>Target / fee</small><b>{fmt(r.tpPct, 1)}% / {fmt(r.rtFeePct, 1)}%</b></div>
+        <div><small>Gerak 1 jam</small><b>{fmt(r.atrPct, 1)}%</b></div>
+        <div><small>Volume/hari</small><b>{money(r.dollarVol)}</b></div>
+      </div>
       <p className="s-why">{r.reasons.join(" · ")}</p>
     </button>
   );
