@@ -8,7 +8,24 @@ const VERDICT = { KANDIDAT: "Kandidat", PANTAU: "Pantau", HINDARI: "Hindari" };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const money = (n) => (n >= 1e6 ? `$${(n / 1e6).toFixed(1)}jt` : `$${Math.round(n / 1e3)}rb`);
 
-function Card({ r, rank, onOpen }) {
+const usd2 = (n) => `$${Math.abs(n).toFixed(2)}`;
+// Rencana beli: ukuran posisi dibatasi oleh modal/jumlah posisi DAN rugi maksimal yang kamu izinkan.
+function plan(r, cfg, fee) {
+  const side = (pos) => Math.max(fee.min, (pos * fee.pct) / 100) + fee.fixed;
+  const slF = r.slPct / 100, tpF = r.tpPct / 100;
+  let pos = cfg.capital / cfg.n;
+  // kurangi posisi sampai rugi maksimal (SL + fee) <= batas rugi
+  for (let i = 0; i < 30 && pos * slF + side(pos) * 2 > cfg.risk; i++) pos *= 0.9;
+  if (pos < 5) return null;
+  const f2 = side(pos) * 2;
+  return {
+    pos, shares: pos / r.price, sl: r.price * (1 - slF), tp: r.price * (1 + tpF),
+    maxLoss: pos * slF + f2, net: pos * tpF - f2, fee: f2, be: (f2 / pos) * 100,
+  };
+}
+
+function Card({ r, rank, onOpen, cfg, fee }) {
+  const pl = fee ? plan(r, cfg, fee) : null;
   const wr = r.bt.trades ? Math.round(r.bt.winShr * 100) : null;
   return (
     <button className={`scard ${r.verdict}`} onClick={() => onOpen(r.symbol)}>
@@ -36,6 +53,18 @@ function Card({ r, rank, onOpen }) {
           <span>Masuk ${fmt(r.entry.price)}</span><span className="down">SL ${fmt(r.entry.sl)}</span><span className="up">TP ${fmt(r.entry.tp)}</span>
         </div>
       )}
+      {pl && (
+        <div className="s-plan">
+          <div className="eyebrow">Rencana beli</div>
+          <div className="s-grid">
+            <div><small>Beli senilai</small><b>{usd2(pl.pos)} <em>({pl.shares.toFixed(2)} lbr)</em></b></div>
+            <div><small>Harus naik dulu</small><b>{fmt(pl.be, 2)}% (tutup fee)</b></div>
+            <div><small>SL / TP</small><b><span className="down">${fmt(pl.sl)}</span> / <span className="up">${fmt(pl.tp)}</span></b></div>
+            <div><small>Rugi maks → untung bersih</small><b><span className="down">−{usd2(pl.maxLoss)}</span> → <span className="up">+{usd2(pl.net)}</span></b></div>
+          </div>
+          {pl.net <= 0 && <p className="s-warn">Setelah fee, targetnya tidak menyisakan untung. Lewati.</p>}
+        </div>
+      )}
       <p className="s-why">{r.reasons.join(" · ")}</p>
     </button>
   );
@@ -50,6 +79,8 @@ export default function ScreenerView({ onOpen }) {
   const [onlyCap, setOnlyCap] = useState(false);
   const [custom, setCustom] = useState(() => load("screenList", null));
   const [edit, setEdit] = useState(false);
+  const [cfg, setCfg] = useState(() => load("calc", { capital: 100, n: 2, risk: 2 }));
+  const setC = (k, v) => setCfg((c) => { const n = { ...c, [k]: v }; localStorage.setItem("calc", JSON.stringify(n)); return n; });
   const [draft, setDraft] = useState("");
 
   const run = useCallback(async (force) => {
@@ -114,11 +145,21 @@ export default function ScreenerView({ onOpen }) {
         {SORTS.map(([k, l]) => <button key={k} className={sort === k ? "active" : ""} onClick={() => setSort(k)}>{l}</button>)}
       </div>
 
-      {list.length ? list.map((r, i) => <Card key={r.symbol} r={r} rank={i + 1} onOpen={onOpen} />) : (
+      {list.length ? list.map((r, i) => <Card key={r.symbol} r={r} rank={i + 1} onOpen={onOpen} cfg={cfg} fee={data.fee} />) : (
         <div className="empty"><b>Tidak ada saham untuk filter ini</b><p>Coba filter “Semua” atau matikan batas harga.</p></div>
       )}
 
       {data.skipped?.length > 0 && <p className="disc">Tidak ada data: {data.skipped.join(", ")}.</p>}
+
+      <section className="card">
+        <h3>Kalkulator posisi</h3>
+        <div className="calc">
+          <label>Modal ($)<input type="number" inputMode="decimal" min="10" value={cfg.capital} onChange={(e) => setC("capital", Math.max(10, +e.target.value || 0))} /></label>
+          <label>Jumlah saham<input type="number" inputMode="numeric" min="1" max="5" value={cfg.n} onChange={(e) => setC("n", Math.min(5, Math.max(1, Math.round(+e.target.value || 1))))} /></label>
+          <label>Rugi maks/trade ($)<input type="number" inputMode="decimal" min="0.5" step="0.5" value={cfg.risk} onChange={(e) => setC("risk", Math.max(0.5, +e.target.value || 0.5))} /></label>
+        </div>
+        <p className="disc" style={{ margin: "8px 0 0" }}>Angka “Rencana beli” di tiap kartu mengikuti isian ini. Ukuran posisi dikecilkan otomatis bila rugi di SL (termasuk fee) melebihi batasmu.</p>
+      </section>
 
       <section className="card">
         <h3>Daftar saya</h3>

@@ -33,6 +33,7 @@ async function initPush(settings) {
   return v;
 }
 
+const feeInfo = (s) => ({ pct: s.feePctPerSide, min: s.minFeeUsd, fixed: s.fixedFeeUsd, capital: s.capitalUsd });
 const json = (res, code, body, cache) => {
   if (cache) res.set("Cache-Control", cache);
   res.status(code).json(body);
@@ -128,15 +129,15 @@ export const api = onRequest(
         if (custom) {
           // daftar kustom: hitung langsung, tanpa cache
           const out = await runScreener(custom, settings);
-          return json(res, 200, { ...out, custom: true, maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
+          return json(res, 200, { ...out, custom: true, maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
         }
         const ref = db().doc("screener/latest");
         const snap = await ref.get();
         const fresh = snap.exists && Date.now() - snap.data().generatedAt < 20 * 60 * 1000;
-        if (fresh && !req.query.refresh) return json(res, 200, { ...snap.data(), maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
+        if (fresh && !req.query.refresh) return json(res, 200, { ...snap.data(), maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
         const out = await runScreener(UNIVERSE, settings);
         await ref.set(out);
-        return json(res, 200, { ...out, maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
+        return json(res, 200, { ...out, maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
       }
 
       return json(res, 404, { error: "not_found" });

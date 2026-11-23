@@ -206,3 +206,9 @@ nav button.active::before { content: ""; position: absolute; top: -1px; width: 2
 .s-why { color: #6F8B96; font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
 .ta { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 10px; font: 500 14px var(--mono); margin-bottom: 8px; }
 .row-btn { display: flex; gap: 8px; }
+.s-plan { margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--bg); }
+.s-plan .eyebrow { margin-bottom: 8px; } .s-plan em { font-style: normal; color: var(--muted); font-size: 11.5px; }
+.s-warn { color: var(--amber); font-size: 12px; margin: 8px 0 0; }
+.calc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.calc label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 11px; }
+.calc input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 9px; font: 500 15px var(--mono); }
