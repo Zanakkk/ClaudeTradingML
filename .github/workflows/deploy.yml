@@ -23,5 +23,12 @@ jobs:
         run: |
           printf '%s' "$FIREBASE_KEY" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@latest deploy --project claudetradingml --only hosting,functions --non-interactive --force
+          set +e
+          npx --yes firebase-tools@latest deploy --project claudetradingml --only hosting,functions --non-interactive --force > "$RUNNER_TEMP/deploy.log" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/deploy.log"
           rm -f "$RUNNER_TEMP/sa.json"
+          if [ $code -ne 0 ]; then
+            echo "::error title=Deploy gagal::$(grep -v '^$' "$RUNNER_TEMP/deploy.log" | tail -n 14 | tr '\n' '|' | cut -c1-1500)"
+          fi
+          exit $code
