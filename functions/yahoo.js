@@ -37,7 +37,7 @@ export async function quotes(symbols) {
   return Promise.all(
     symbols.map(async (symbol) => {
       try {
-        const c = await candles(symbol, "1d", "5d");
+        const c = await candles(symbol, "1d", "1mo");
         const n = c.close.length;
         const price = c.meta.regularMarketPrice ?? c.close[n - 1];
         const prev = n >= 2 ? c.close[n - 2] : c.meta.chartPreviousClose;
@@ -48,6 +48,7 @@ export async function quotes(symbols) {
           price,
           prev,
           changePct: prev ? ((price - prev) / prev) * 100 : null,
+          spark: c.close.slice(-22),
         };
       } catch (e) {
         return { symbol, error: e.message };

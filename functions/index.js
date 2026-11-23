@@ -6,6 +6,7 @@ import webpush from "web-push";
 import crypto from "node:crypto";
 import { scanSymbols } from "./signals.js";
 import { candles, search, quotes } from "./yahoo.js";
+import { predict } from "./lib/predict.js";
 import { DEFAULTS } from "./config.js";
 
 initializeApp();
@@ -38,6 +39,11 @@ const json = (res, code, body, cache) => {
 const SYMBOL_RE = /^[A-Za-z0-9.^=\-]{1,15}$/;
 const INTERVALS = ["1m", "5m", "15m", "1h", "1d", "1wk"];
 const RANGES = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max"];
+const PREDICT_TF = {
+  "15m": { interval: "15m", range: "1mo", horizon: 8, label: "2 jam" },
+  "1h": { interval: "1h", range: "6mo", horizon: 8, label: "8 jam" },
+  "1d": { interval: "1d", range: "5y", horizon: 5, label: "5 hari" },
+};
 const parseSymbols = (q, max) =>
   String(q || "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => SYMBOL_RE.test(x)).slice(0, max);
 
@@ -96,10 +102,29 @@ export const api = onRequest(
         return json(res, 200, { results: await quotes(symbols) }, "public, max-age=20, s-maxage=45, stale-while-revalidate=90");
       }
 
-      return json(res, 404, { error: "not found" });
+      if (req.path === "/api/predict") {
+        const [symbol] = parseSymbols(req.query.symbol, 1);
+        if (!symbol) return json(res, 400, { error: "symbol required" });
+        const cfg = PREDICT_TF[req.query.tf] || PREDICT_TF["1h"];
+        const [c, settings] = await Promise.all([candles(symbol, cfg.interval, cfg.range), getSettings()]);
+        const out = predict(c, settings, cfg.horizon);
+        if (out.error) return json(res, 200, { symbol, error: out.error }, "public, max-age=60");
+        return json(
+          res, 200,
+          {
+            symbol, name: c.meta.shortName || "", currency: c.meta.currency, tf: req.query.tf in PREDICT_TF ? req.query.tf : "1h",
+            horizonLabel: cfg.label, interval: cfg.interval, ...out,
+            history: { t: c.t.slice(-60), close: c.close.slice(-60) },
+          },
+          "public, max-age=30, s-maxage=60"
+        );
+      }
+
+      return json(res, 404, { error: "not_found" });
     } catch (e) {
       console.error(e);
-      return json(res, 502, { error: e.message || "server error" }, "no-store");
+      if (/404|no data|not found/i.test(e.message || "")) return json(res, 404, { error: "not_found" }, "public, max-age=60");
+      return json(res, 502, { error: "unavailable" }, "no-store");
     }
   }
 );

@@ -15,11 +15,16 @@ export default function WatchlistView({ watch, onOpen, onToggleWatch }) {
   }, [key]);
 
   if (!watch.length)
-    return <p className="muted empty">Belum ada watchlist.<br />Tekan ☆ di halaman chart atau daftar pasar untuk menambah.</p>;
+    return (
+      <div className="empty">
+        <b>Watchlist masih kosong</b>
+        <p>Tekan ☆ di halaman chart atau daftar pasar untuk menyimpan ticker di sini.</p>
+      </div>
+    );
 
   return (
     <section className="card">
-      <h3>⭐ Watchlist</h3>
+      <h3>Watchlist · {watch.length} ticker</h3>
       {watch.map((s) => <QuoteRow key={s} q={q.find((x) => x.symbol === s) || { symbol: s, name: "…", price: null }} onOpen={onOpen} onStar={onToggleWatch} starred />)}
     </section>
   );
