@@ -8,7 +8,7 @@ import { scanSymbols } from "./signals.js";
 import { candles, search, quotes } from "./yahoo.js";
 import { predict } from "./lib/predict.js";
 import { runScreener } from "./screener.js";
-import { UNDER10 } from "./universe.js";
+import { UNIVERSE } from "./universe.js";
 import { DEFAULTS } from "./config.js";
 
 initializeApp();
@@ -134,7 +134,7 @@ export const api = onRequest(
         const snap = await ref.get();
         const fresh = snap.exists && Date.now() - snap.data().generatedAt < 20 * 60 * 1000;
         if (fresh && !req.query.refresh) return json(res, 200, { ...snap.data(), maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
-        const out = await runScreener(UNDER10, settings);
+        const out = await runScreener(UNIVERSE, settings);
         await ref.set(out);
         return json(res, 200, { ...out, maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
       }
@@ -191,7 +191,7 @@ export const scan = onSchedule(
 export const screen = onSchedule(
   { schedule: "*/30 9-16 * * 1-5", timeZone: "America/New_York", region: REGION, memory: "512MiB", timeoutSeconds: 180 },
   async () => {
-    const out = await runScreener(UNDER10, await getSettings());
+    const out = await runScreener(UNIVERSE, await getSettings());
     await db().doc("screener/latest").set(out);
   }
 );

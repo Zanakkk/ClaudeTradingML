@@ -13,3 +13,12 @@ export const UNDER10 = [
   "ANGI","AIV","ARKO","ASAN","ATER","ACB","BYND","BNGO",
   "GT","GPRO","GRAB","ICL","INO","PGX","IQ","JBLU",
 ];
+
+// Saham lain di Gotrade (harga di atas $10), dari screenshot kedua.
+export const LARGER = [
+  "SHOP","SPOT","SBUX","TSLA","V","ZM","RIVN","HOOD","SE","NFLX","NKE","NVDA","PYPL","PFE","PG",
+  "T","BIDU","BAC","BRK-B","C","KO","COIN","DIS","EBAY","XOM","F","GME","GOOG",
+  "INTC","JNJ","JPM","MA","MCD","META","MSFT","MRNA","MRVL","HPE","LYB","MSI","LIN",
+  "ADBE","AMD","ABNB","BABA","AMZN","AAPL","DELL","UMC","MU","DOCN","ASX",
+];
+export const UNIVERSE = [...new Set([...UNDER10, ...LARGER])];

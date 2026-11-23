@@ -47,7 +47,7 @@ export default function ScreenerView({ onOpen }) {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("score");
-  const [onlyCap, setOnlyCap] = useState(true);
+  const [onlyCap, setOnlyCap] = useState(false);
   const [custom, setCustom] = useState(() => load("screenList", null));
   const [edit, setEdit] = useState(false);
   const [draft, setDraft] = useState("");
