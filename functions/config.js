@@ -9,6 +9,8 @@ export const DEFAULTS = {
   fixedFeeUsd: 0.02,      // biaya tetap kecil per transaksi (JFX, dll)
   slAtr: 1,               // stop loss = 1x ATR
   tpAtr: 1.5,             // take profit = 1.5x ATR
+  minDollarVol: 300000,   // screener: abaikan saham dengan nilai transaksi harian rata-rata < $300 ribu
+  maxPriceUsd: 10,        // screener: batas harga
   minRewardToFee: 3,      // sinyal dilewati kalau profit kotor TP < 3x total fee
   contactUrl: "https://claudetradingml.web.app",
 };

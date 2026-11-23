@@ -3,7 +3,12 @@ const HEADERS = { "User-Agent": "Mozilla/5.0" };
 const BASE = "https://query1.finance.yahoo.com";
 
 export async function candles(symbol, interval, range) {
-  const r = await fetch(`${BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`, { headers: HEADERS });
+  const url = `${BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+  let r = await fetch(url, { headers: HEADERS });
+  if (r.status === 429 || r.status >= 500) {
+    await new Promise((ok) => setTimeout(ok, 500));
+    r = await fetch(url, { headers: HEADERS });
+  }
   if (!r.ok) throw new Error(`Yahoo ${r.status}`);
   const j = await r.json();
   const res = j.chart?.result?.[0];

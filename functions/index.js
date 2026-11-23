@@ -7,6 +7,8 @@ import crypto from "node:crypto";
 import { scanSymbols } from "./signals.js";
 import { candles, search, quotes } from "./yahoo.js";
 import { predict } from "./lib/predict.js";
+import { runScreener } from "./screener.js";
+import { UNDER10 } from "./universe.js";
 import { DEFAULTS } from "./config.js";
 
 initializeApp();
@@ -49,7 +51,7 @@ const parseSymbols = (q, max) =>
 
 // Satu function untuk semua endpoint /api/*
 export const api = onRequest(
-  { region: REGION, memory: "256MiB", timeoutSeconds: 30, invoker: "public" },
+  { region: REGION, memory: "512MiB", timeoutSeconds: 60, invoker: "public" },
   async (req, res) => {
     try {
       if (req.path === "/api/vapid") {
@@ -120,6 +122,23 @@ export const api = onRequest(
         );
       }
 
+      if (req.path === "/api/screener") {
+        const settings = await getSettings();
+        const custom = req.query.symbols ? parseSymbols(req.query.symbols, 120) : null;
+        if (custom) {
+          // daftar kustom: hitung langsung, tanpa cache
+          const out = await runScreener(custom, settings);
+          return json(res, 200, { ...out, custom: true, maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
+        }
+        const ref = db().doc("screener/latest");
+        const snap = await ref.get();
+        const fresh = snap.exists && Date.now() - snap.data().generatedAt < 20 * 60 * 1000;
+        if (fresh && !req.query.refresh) return json(res, 200, { ...snap.data(), maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
+        const out = await runScreener(UNDER10, settings);
+        await ref.set(out);
+        return json(res, 200, { ...out, maxPriceUsd: settings.maxPriceUsd }, "public, max-age=60");
+      }
+
       return json(res, 404, { error: "not_found" });
     } catch (e) {
       console.error(e);
@@ -165,5 +184,14 @@ export const scan = onSchedule(
         });
       })
     );
+  }
+);
+
+// Screener dihitung ulang tiap 30 menit selama jam bursa, supaya halaman terbuka cepat.
+export const screen = onSchedule(
+  { schedule: "*/30 9-16 * * 1-5", timeZone: "America/New_York", region: REGION, memory: "512MiB", timeoutSeconds: 180 },
+  async () => {
+    const out = await runScreener(UNDER10, await getSettings());
+    await db().doc("screener/latest").set(out);
   }
 );

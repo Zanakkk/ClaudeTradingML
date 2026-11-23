@@ -179,3 +179,30 @@ nav button.active::before { content: ""; position: absolute; top: -1px; width: 2
 .verdict.good { border-color: rgba(79,214,165,.45); }
 .verdict.bad { border-color: rgba(242,184,75,.4); }
 .verdict-t { font: 700 18px/1.25 var(--display); margin: 0 0 10px; }
+
+/* screener */
+.hero-s h2 { font: 600 21px/1.2 var(--display); letter-spacing: -.02em; margin: 2px 0 10px; }
+.toprow { display: flex; gap: 8px; margin-bottom: 12px; }
+.toprow button { flex: 1; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; border: 1px solid #2A5062; background: var(--raised); color: var(--text); }
+.toprow b { font: 600 16px var(--mono); } .toprow span { color: var(--up); font: 500 13px var(--mono); }
+.s-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; }
+.btn.sm { padding: 7px 11px; font-size: 12.5px; } .btn.sm .ico { width: 15px; height: 15px; }
+.scard { text-align: left; width: 100%; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; color: var(--text); }
+.scard.KANDIDAT { border-color: rgba(79,214,165,.45); }
+.s-head { display: flex; align-items: center; gap: 10px; }
+.s-rank { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: var(--raised); color: var(--muted); font: 600 12px var(--mono); }
+.s-name { flex: 1; min-width: 0; display: flex; flex-direction: column; } .s-name b { font: 600 16px var(--mono); }
+.s-name small, .s-price small { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-price { display: flex; flex-direction: column; align-items: flex-end; } .s-price b { font: 500 16px var(--mono); }
+.up { color: var(--up); } .down { color: var(--down); }
+.s-body { display: flex; align-items: flex-end; justify-content: space-between; margin: 12px 0 8px; }
+.s-win { display: flex; flex-direction: column; } .s-win b { font: 600 34px/1 var(--display); letter-spacing: -.03em; } .s-win small { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
+.vbadge { padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--raised); color: var(--muted); }
+.vbadge.KANDIDAT { background: var(--up); color: #052418; } .vbadge.PANTAU { background: rgba(242,184,75,.16); color: var(--amber); }
+.s-bar { height: 5px; background: var(--raised); border-radius: 4px; overflow: hidden; margin-bottom: 12px; } .s-bar i { display: block; height: 100%; background: var(--amber); border-radius: 4px; }
+.s-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.s-grid div { display: flex; flex-direction: column; gap: 2px; } .s-grid small { color: var(--muted); font-size: 11px; } .s-grid b { font: 500 13.5px var(--mono); }
+.s-entry { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--bg); font: 500 12.5px var(--mono); }
+.s-why { color: #6F8B96; font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
+.ta { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 10px; font: 500 14px var(--mono); margin-bottom: 8px; }
+.row-btn { display: flex; gap: 8px; }

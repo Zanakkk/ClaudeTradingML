@@ -4,20 +4,21 @@ import SignalsView from "./components/SignalsView.jsx";
 import MarketView from "./components/MarketView.jsx";
 import ChartView from "./components/ChartView.jsx";
 import PredictView from "./components/PredictView.jsx";
+import ScreenerView from "./components/ScreenerView.jsx";
 import WatchlistView from "./components/WatchlistView.jsx";
 import { Icon, SessionBar } from "./components/ui.jsx";
 
 const TABS = [
   ["signals", "signals", "Sinyal"],
-  ["market", "market", "Pasar"],
+  ["screener", "screener", "Screener"],
   ["chart", "chart", "Chart"],
   ["predict", "predict", "Prediksi"],
-  ["watch", "watch", "Watchlist"],
+  ["market", "market", "Pasar"],
 ];
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 
 export default function App() {
-  const [tab, setTab] = useState("chart");
+  const [tab, setTab] = useState("screener");
   const [symbol, setSymbol] = useState(() => localStorage.getItem("symbol") || "SPY");
   const [watch, setWatch] = useState(() => load("watch", ["SPY", "QQQ", "NVDA"]));
 
@@ -27,6 +28,8 @@ export default function App() {
     localStorage.setItem("watch", JSON.stringify(n));
     return n;
   }), []);
+
+  const go = (s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab("chart"); window.scrollTo(0, 0); };
 
   return (
     <div className="app">
@@ -39,10 +42,11 @@ export default function App() {
       </header>
       <main>
         {tab === "signals" && <SignalsView onOpen={(s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab("chart"); window.scrollTo(0, 0); }} />}
+        {tab === "screener" && <ScreenerView onOpen={go} />}
+        {tab === "market" && watch.length > 0 && <div style={{ marginBottom: 12 }}><WatchlistView watch={watch} onOpen={go} onToggleWatch={toggleWatch} /></div>}
         {tab === "market" && <MarketView onOpen={(s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab("chart"); window.scrollTo(0, 0); }} watch={watch} onToggleWatch={toggleWatch} />}
         {tab === "chart" && <ChartView key={symbol} symbol={symbol} watched={watch.includes(symbol)} onToggleWatch={toggleWatch} />}
         {tab === "predict" && <PredictView key={symbol} symbol={symbol} />}
-        {tab === "watch" && <WatchlistView watch={watch} onOpen={(s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab("chart"); window.scrollTo(0, 0); }} onToggleWatch={toggleWatch} />}
       </main>
       <nav>
         {TABS.map(([k, icon, label]) => (

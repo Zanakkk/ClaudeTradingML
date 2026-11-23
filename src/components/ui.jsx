@@ -8,6 +8,7 @@ export const Icon = ({ name }) => {
     chart: (<><path d="M7 3v3M7 14v4M17 6v3M17 17v3" /><rect x="5" y="6" width="4" height="8" rx="1" /><rect x="15" y="9" width="4" height="8" rx="1" /></>),
     predict: (<><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>),
     watch: <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9L3.5 9.7l5.9-.8L12 3.5z" />,
+    screener: (<><path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" /></>),
     refresh: <path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />,
     bell: <path d="M6 9a6 6 0 1 1 12 0c0 6 2 7 2 7H4s2-1 2-7zM10 20a2 2 0 0 0 4 0" />,
   };
