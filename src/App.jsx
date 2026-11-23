@@ -1,114 +1,49 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
+import SearchBar from "./components/SearchBar.jsx";
+import SignalsView from "./components/SignalsView.jsx";
+import MarketView from "./components/MarketView.jsx";
+import ChartView from "./components/ChartView.jsx";
+import WatchlistView from "./components/WatchlistView.jsx";
 
-const fmt = (n, d = 2) => (n == null ? "-" : n.toFixed(d));
-const usd = (n) => (n == null ? "-" : `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`);
-
-function b64ToUint8(b64) {
-  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
-  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-}
-
-const LABEL = { BUY: "BUY", WAIT: "WAIT", SKIP_FEE: "SKIP (fee)", NO_DATA: "No data", ERROR: "Error" };
+const TABS = [
+  ["signals", "📡", "Sinyal"],
+  ["market", "🌐", "Pasar"],
+  ["chart", "📈", "Chart"],
+  ["watch", "⭐", "Watchlist"],
+];
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 
 export default function App() {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [push, setPush] = useState(
-    typeof Notification !== "undefined" && Notification.permission === "granted" ? "on" : "off"
-  );
-  const [msg, setMsg] = useState("");
+  const [tab, setTab] = useState("chart");
+  const [symbol, setSymbol] = useState(() => localStorage.getItem("symbol") || "SPY");
+  const [watch, setWatch] = useState(() => load("watch", ["SPY", "QQQ", "NVDA"]));
 
-  const load = useCallback(async () => {
-    try {
-      const r = await fetch("/api/signals");
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setData(await r.json());
-      setError(null);
-    } catch (e) {
-      setError(e.message);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, [load]);
-
-  async function enablePush() {
-    try {
-      if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Browser tidak mendukung push");
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      if ((await Notification.requestPermission()) !== "granted") throw new Error("Izin notifikasi ditolak");
-      const { publicKey } = await (await fetch("/api/vapid")).json();
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(publicKey) });
-      const r = await fetch("/api/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub),
-      });
-      if (!r.ok) throw new Error("Gagal menyimpan langganan");
-      setPush("on");
-      setMsg("Notifikasi aktif ✔");
-    } catch (e) {
-      setMsg(e.message);
-    }
-  }
-
-  const rank = { BUY: 0, SKIP_FEE: 1, WAIT: 2 };
-  const rows = (data?.results || []).slice().sort((a, b) => (rank[a.action] ?? 9) - (rank[b.action] ?? 9));
-  const s = data?.settings;
+  const open = useCallback((s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab("chart"); window.scrollTo(0, 0); }, []);
+  const toggleWatch = useCallback((s) => setWatch((w) => {
+    const n = w.includes(s) ? w.filter((x) => x !== s) : [...w, s];
+    localStorage.setItem("watch", JSON.stringify(n));
+    return n;
+  }), []);
 
   return (
-    <div className="wrap">
-      <h1>ClaudeTradingML</h1>
-      <p className="sub">Tren 1 jam · timing 15 menit · SL/TP berbasis ATR · sudah dihitung fee</p>
-
-      <div className="bar">
-        <button onClick={load}>Refresh</button>
-        <button onClick={enablePush} disabled={push === "on"}>
-          {push === "on" ? "Notifikasi aktif" : "Aktifkan notifikasi"}
-        </button>
-      </div>
-      {msg && <p className="sub">{msg}</p>}
-      {error && <p className="err">Gagal memuat: {error}</p>}
-      {!data && !error && <p>Memuat…</p>}
-
-      {s && (
-        <p className="sub">
-          Modal ${s.capitalUsd} · risiko {s.riskPct}%/trade · fee {s.feePctPerSide}%/sisi (min ${s.minFeeUsd})
-        </p>
-      )}
-
-      {data && (
-        <table>
-          <thead>
-            <tr><th>Ticker</th><th>Sinyal</th><th>Harga</th><th>SL</th><th>TP</th><th>Posisi</th><th>Fee</th><th>Net TP</th><th>Net SL</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.symbol} className={r.action === "BUY" ? "buy" : r.action === "SKIP_FEE" ? "skip" : ""}>
-                <td>{r.symbol}</td>
-                <td><b>{LABEL[r.action] || r.action}</b></td>
-                <td>{fmt(r.price)}</td>
-                <td>{fmt(r.sl)}</td>
-                <td>{fmt(r.tp)}</td>
-                <td>{r.positionUsd == null ? "-" : `$${fmt(r.positionUsd, 0)}`}</td>
-                <td>{usd(r.fee)}</td>
-                <td>{usd(r.netTp)}</td>
-                <td>{usd(r.netSl)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <p className="disc">
-        "SKIP (fee)" = sinyal teknikal ada, tapi fee memakan terlalu banyak profit. Alat bantu analisa, bukan saran
-        investasi. Data Yahoo Finance (tidak resmi, bisa tertunda).
-        Terakhir diperbarui: {data ? new Date(data.generatedAt).toLocaleTimeString("id-ID") : "-"}
-      </p>
+    <div className="app">
+      <header>
+        <div className="brand">Claude<span>TradingML</span></div>
+        <SearchBar onPick={open} />
+      </header>
+      <main>
+        {tab === "signals" && <SignalsView onOpen={open} />}
+        {tab === "market" && <MarketView onOpen={open} watch={watch} onToggleWatch={toggleWatch} />}
+        {tab === "chart" && <ChartView key={symbol} symbol={symbol} watched={watch.includes(symbol)} onToggleWatch={toggleWatch} />}
+        {tab === "watch" && <WatchlistView watch={watch} onOpen={open} onToggleWatch={toggleWatch} />}
+      </main>
+      <nav>
+        {TABS.map(([k, icon, label]) => (
+          <button key={k} className={tab === k ? "active" : ""} onClick={() => setTab(k)}>
+            <span>{icon}</span>{label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

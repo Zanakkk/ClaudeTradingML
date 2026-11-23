@@ -5,6 +5,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import webpush from "web-push";
 import crypto from "node:crypto";
 import { scanSymbols } from "./signals.js";
+import { candles, search, quotes } from "./yahoo.js";
 import { DEFAULTS } from "./config.js";
 
 initializeApp();
@@ -34,34 +35,72 @@ const json = (res, code, body, cache) => {
   res.status(code).json(body);
 };
 
+const SYMBOL_RE = /^[A-Za-z0-9.^=\-]{1,15}$/;
+const INTERVALS = ["1m", "5m", "15m", "1h", "1d", "1wk"];
+const RANGES = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max"];
+const parseSymbols = (q, max) =>
+  String(q || "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => SYMBOL_RE.test(x)).slice(0, max);
+
 // Satu function untuk semua endpoint /api/*
 export const api = onRequest(
   { region: REGION, memory: "256MiB", timeoutSeconds: 30, invoker: "public" },
   async (req, res) => {
-    const settings = await getSettings();
+    try {
+      if (req.path === "/api/vapid") {
+        const v = await initPush(await getSettings());
+        return json(res, 200, { publicKey: v.publicKey }, "public, max-age=3600");
+      }
 
-    if (req.path === "/api/vapid") {
-      const v = await initPush(settings);
-      return json(res, 200, { publicKey: v.publicKey }, "public, max-age=3600");
+      if (req.path === "/api/subscribe" && req.method === "POST") {
+        const sub = req.body;
+        if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) return json(res, 400, { error: "bad subscription" });
+        const id = crypto.createHash("sha256").update(sub.endpoint).digest("hex").slice(0, 40);
+        await db().doc(`subs/${id}`).set({ sub: { endpoint: sub.endpoint, keys: sub.keys }, createdAt: Date.now() });
+        return json(res, 200, { ok: true });
+      }
+
+      if (req.path === "/api/signals") {
+        const settings = await getSettings();
+        const symbols = req.query.symbols ? parseSymbols(req.query.symbols, 20) : settings.symbols;
+        const results = await scanSymbols(symbols, settings);
+        const { symbols: _s, contactUrl: _c, ...pub } = settings;
+        return json(res, 200, { generatedAt: Date.now(), settings: pub, results }, "public, max-age=30, s-maxage=60, stale-while-revalidate=120");
+      }
+
+      if (req.path === "/api/chart") {
+        const [symbol] = parseSymbols(req.query.symbol, 1);
+        const interval = INTERVALS.includes(req.query.interval) ? req.query.interval : "15m";
+        const range = RANGES.includes(req.query.range) ? req.query.range : "1mo";
+        if (!symbol) return json(res, 400, { error: "symbol required" });
+        const [c, [q]] = await Promise.all([candles(symbol, interval, range), quotes([symbol])]);
+        const intraday = !["1d", "1wk"].includes(interval);
+        return json(
+          res, 200,
+          {
+            symbol, name: q?.name || c.meta.shortName || "", currency: c.meta.currency,
+            price: q?.price ?? c.close[c.close.length - 1], prev: q?.prev ?? null, changePct: q?.changePct ?? null,
+            interval, range, t: c.t, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
+          },
+          intraday ? "public, max-age=15, s-maxage=30" : "public, max-age=60, s-maxage=120"
+        );
+      }
+
+      if (req.path === "/api/search") {
+        const q = String(req.query.q || "").trim().slice(0, 40);
+        if (!q) return json(res, 200, { results: [] });
+        return json(res, 200, { results: await search(q) }, "public, max-age=300, s-maxage=600");
+      }
+
+      if (req.path === "/api/quotes") {
+        const symbols = parseSymbols(req.query.symbols, 60);
+        return json(res, 200, { results: await quotes(symbols) }, "public, max-age=20, s-maxage=45, stale-while-revalidate=90");
+      }
+
+      return json(res, 404, { error: "not found" });
+    } catch (e) {
+      console.error(e);
+      return json(res, 502, { error: e.message || "server error" }, "no-store");
     }
-
-    if (req.path === "/api/subscribe" && req.method === "POST") {
-      const sub = req.body;
-      if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) return json(res, 400, { error: "bad subscription" });
-      const id = crypto.createHash("sha256").update(sub.endpoint).digest("hex").slice(0, 40);
-      await db().doc(`subs/${id}`).set({ sub: { endpoint: sub.endpoint, keys: sub.keys }, createdAt: Date.now() });
-      return json(res, 200, { ok: true });
-    }
-
-    if (req.path === "/api/signals") {
-      const q = req.query.symbols;
-      const symbols = q ? String(q).split(",").map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 20) : settings.symbols;
-      const results = await scanSymbols(symbols, settings);
-      const { symbols: _s, contactUrl: _c, ...pub } = settings;
-      return json(res, 200, { generatedAt: Date.now(), settings: pub, results }, "public, max-age=30, s-maxage=60, stale-while-revalidate=120");
-    }
-
-    return json(res, 404, { error: "not found" });
   }
 );
 
