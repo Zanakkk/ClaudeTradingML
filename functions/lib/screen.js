@@ -58,6 +58,40 @@ function hitStats(h, tpF, slF, H) {
   return { tp: Math.round((tp / tot) * 100), sl: Math.round((sl / tot) * 100), n: tot };
 }
 
+// Monte Carlo (bootstrap): ambil acak K hasil trade dari riwayat saham ini, dijumlahkan, ulangi 1000 kali.
+// Hasilnya: berapa % simulasi berakhir untung, dan seberapa buruk skenario 5% terburuk.
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function monteCarlo(tr, k = 10, iters = 1000) {
+  if (tr.length < 8) return null;
+  const rnd = mulberry32(tr.length * 7919 + Math.round(tr.reduce((a, b) => a + b, 0) * 100));
+  const ends = [];
+  let deep = 0;
+  for (let it = 0; it < iters; it++) {
+    let cum = 0, low = 0;
+    for (let j = 0; j < k; j++) {
+      cum += tr[Math.floor(rnd() * tr.length)];
+      if (cum < low) low = cum;
+    }
+    ends.push(cum);
+    if (low <= -8) deep++;
+  }
+  ends.sort((a, b) => a - b);
+  return {
+    iters, k,
+    pProfit: Math.round((ends.filter((x) => x > 0).length / iters) * 100),
+    median: ends[Math.floor(iters / 2)],
+    p5: ends[Math.floor(iters * 0.05)],
+    pDeep: Math.round((deep / iters) * 100), // % simulasi yang sempat rugi >= 8% modal
+  };
+}
+
 export function analyze(symbol, h1, d1, s) {
   if (h1.close.length < 150 || d1.close.length < 30) return { symbol, status: "no_data" };
 
@@ -100,6 +134,9 @@ export function analyze(symbol, h1, d1, s) {
   const gl = -tr.filter((x) => x < 0).reduce((a, b) => a + b, 0);
   const profitFactor = gl > 0 ? gp / gl : nT ? 99 : null;
 
+  const mc = monteCarlo(tr);
+  const netTpPct = tpPct - rtFeePct;
+
   // setup aktif sekarang (3 candle terakhir)
   const setupNow = ind.sig[n - 1] || ind.sig[n - 2] || ind.sig[n - 3];
   const A = last(ind.a);
@@ -124,6 +161,18 @@ export function analyze(symbol, h1, d1, s) {
   if (liquid && feeOk && nT >= 8 && avgNet > 0 && score >= 62) verdict = "KANDIDAT";
   else if (liquid && avgNet > 0 && score >= 48) verdict = "PANTAU";
 
+  // standar "kuat" untuk dianggap layak trade (semua harus lolos)
+  const checks = [
+    { k: "win", label: "Win rate ≥ 55%", ok: winShr >= 0.55 },
+    { k: "avg", label: "Rata² bersih ≥ +0,5%/trade", ok: avgNet >= 0.5 },
+    { k: "n", label: "Minimal 12 trade historis", ok: nT >= 12 },
+    { k: "mc", label: "Simulasi 1.000×: untung ≥ 70%", ok: !!mc && mc.pProfit >= 70 },
+    { k: "tp", label: "Target ≥ 3× fee", ok: tpPct >= rtFeePct * 3 },
+    { k: "liq", label: "Volume ≥ $1jt/hari", ok: dollarVol >= 1e6 },
+    { k: "gap", label: "Tidak pernah anjlok > 20%/hari", ok: worstDay >= -20 },
+  ];
+  const strong = checks.every((c) => c.ok);
+
   const reasons = [];
   if (hourlyUp) reasons.push("tren 1 jam naik"); else reasons.push("tren 1 jam belum naik");
   if (setupNow) reasons.push("sinyal masuk baru muncul");
@@ -140,6 +189,7 @@ export function analyze(symbol, h1, d1, s) {
     bt: { trades: nT, winRate, winShr, avgNet, profitFactor },
     hit: { h1: hitStats(h1, tpPct / 100, slPct / 100, 1), d1: hitStats(h1, tpPct / 100, slPct / 100, 7) },
     entry: setupNow ? { price, sl: price - s.slAtr * A, tp: price + s.tpAtr * A } : null,
+    mc, netTpPct, checks, strong,
     score: Math.round(score), verdict, reasons,
   };
 }
