@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { register, login, loginGoogle, resetPassword, authErr } from "../lib/firebase.js";
+import { register, login, resetPassword, authErr } from "../lib/firebase.js";
 
 export default function AuthScreen({ initial = "signup", reason, onClose, onGuest }) {
   const [mode, setMode] = useState(initial); // signup | login | reset
@@ -23,7 +23,6 @@ export default function AuthScreen({ initial = "signup", reason, onClose, onGues
     if (pw.length < 6) return setErr("Kata sandi minimal 6 karakter.");
     run(async () => { if (mode === "signup") await register(email.trim(), pw, name.trim()); else await login(email.trim(), pw); onClose(true); });
   };
-  const google = () => run(async () => { await loginGoogle(); onClose(true); });
 
   const title = mode === "signup" ? "Buat akun" : mode === "login" ? "Masuk" : "Atur ulang kata sandi";
   return (
@@ -54,8 +53,6 @@ export default function AuthScreen({ initial = "signup", reason, onClose, onGues
 
         {mode !== "reset" && (
           <>
-            <div className="or"><span>atau</span></div>
-            <button className="btn ghost wide" onClick={google} disabled={busy}>Lanjut dengan Google</button>
           </>
         )}
 
