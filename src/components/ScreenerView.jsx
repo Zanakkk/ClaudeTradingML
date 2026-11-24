@@ -15,14 +15,12 @@ const usd2 = (n) => `$${Math.abs(n).toFixed(2)}`;
 function plan(r, cfg, fee) {
   const side = (pos) => Math.max(fee.min, (pos * fee.pct) / 100) + fee.fixed;
   const slF = r.slPct / 100, tpF = r.tpPct / 100;
-  let pos = cfg.capital / cfg.n;
-  // kurangi posisi sampai rugi maksimal (SL + fee) <= batas rugi
-  for (let i = 0; i < 30 && pos * slF + side(pos) * 2 > cfg.risk; i++) pos *= 0.9;
-  if (pos < 5) return null;
+  const pos = Math.max(1, cfg.enter || 0);
   const f2 = side(pos) * 2;
+  const maxLoss = pos * slF + f2;
   return {
     pos, shares: pos / r.price, sl: r.price * (1 - slF), tp: r.price * (1 + tpF),
-    maxLoss: pos * slF + f2, net: pos * tpF - f2, fee: f2, be: (f2 / pos) * 100,
+    maxLoss, net: pos * tpF - f2, fee: f2, be: (f2 / pos) * 100, over: maxLoss > cfg.risk,
     mcMed: r.mc ? (pos * r.mc.median) / 100 : null, mcBad: r.mc ? (pos * r.mc.p5) / 100 : null,
   };
 }
@@ -81,6 +79,7 @@ function Card({ r, rank, onOpen, cfg, fee }) {
             </div>
           )}
           {r.worstDay < -15 && <p className="s-warn">Hati-hati: saham ini pernah anjlok {Math.abs(r.worstDay).toFixed(0)}% dalam sehari. Harga bisa melompat melewati batas rugi, jadi ruginya bisa lebih besar dari {usd2(pl.maxLoss)}.</p>}
+          {pl.over && <p className="s-warn">Rugi di batas ({usd2(pl.maxLoss)}) melebihi batas rugimu ({usd2(cfg.risk)}). Kecilkan nominal masuk atau lewati saham ini.</p>}
           {pl.net <= 0 && <p className="s-warn">Setelah fee, targetnya tidak menyisakan untung. Lewati.</p>}
         </div>
       )}
@@ -106,7 +105,7 @@ export default function ScreenerView({ onOpen }) {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("score");
-  const [cfg, setCfg] = useState(() => load("calc", { capital: 100, n: 2, risk: 2 }));
+  const [cfg, setCfg] = useState(() => ({ enter: 100, risk: 5, ...load("calc", {}) }));
   const [minProfit, setMinProfit] = useState(0);
   const [minUsd, setMinUsd] = useState(0);
   const [onlyCap, setOnlyCap] = useState(false);
@@ -173,6 +172,21 @@ export default function ScreenerView({ onOpen }) {
         </div>
       </section>
 
+      <section className="card">
+        <label className="enter">
+          <span>Mau masuk berapa ($) per saham?</span>
+          <input type="number" inputMode="decimal" min="1" value={cfg.enter || ""} onChange={(e) => setC("enter", +e.target.value)} />
+        </label>
+        <div className="chips" style={{ margin: "8px 0 10px" }}>
+          {[10, 25, 50, 100, 200].map((v) => <button key={v} className={`chip ${cfg.enter === v ? "active" : ""}`} onClick={() => setC("enter", v)}>${v}</button>)}
+        </div>
+        <label className="enter small">
+          <span>Batas rugi yang masih kamu terima per trade ($)</span>
+          <input type="number" inputMode="decimal" min="0.5" step="0.5" value={cfg.risk || ""} onChange={(e) => setC("risk", +e.target.value)} />
+        </label>
+        <p className="disc" style={{ margin: "8px 0 0" }}>Semua kartu di bawah dihitung ulang dengan nominal ini: untung, rugi, fee, dan hasil Monte Carlo dalam dolar. Filter “Untung target ($)” juga memakainya.</p>
+      </section>
+
       <div className="chips">
         {FILTERS.map(([k, l]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{l}</button>)}
         <button className={`chip ${onlyCap ? "active" : ""}`} onClick={() => setOnlyCap(!onlyCap)}>≤ ${data.maxPriceUsd || 10}</button>
@@ -201,16 +215,6 @@ export default function ScreenerView({ onOpen }) {
           {(data.results[0]?.checks || []).map((c) => <li key={c.k}>{c.label}</li>)}
         </ul>
         <p className="disc" style={{ margin: "8px 0 0" }}>Semua harus lolos. Ini patokan kehati-hatian dari saya, bukan rumus pasti: lolos berarti riwayatnya bagus, bukan berarti pasti untung. Simulasi mengacak hasil trade historis saham itu sendiri, jadi kalau sampelnya sedikit hasilnya ikut rapuh.</p>
-      </section>
-
-      <section className="card">
-        <h3>Kalkulator posisi</h3>
-        <div className="calc">
-          <label>Modal ($)<input type="number" inputMode="decimal" min="10" value={cfg.capital} onChange={(e) => setC("capital", Math.max(10, +e.target.value || 0))} /></label>
-          <label>Jumlah saham<input type="number" inputMode="numeric" min="1" max="5" value={cfg.n} onChange={(e) => setC("n", Math.min(5, Math.max(1, Math.round(+e.target.value || 1))))} /></label>
-          <label>Rugi maks/trade ($)<input type="number" inputMode="decimal" min="0.5" step="0.5" value={cfg.risk} onChange={(e) => setC("risk", Math.max(0.5, +e.target.value || 0.5))} /></label>
-        </div>
-        <p className="disc" style={{ margin: "8px 0 0" }}>Angka “Rencana beli” di tiap kartu mengikuti isian ini. Ukuran posisi dikecilkan otomatis bila rugi di SL (termasuk fee) melebihi batasmu.</p>
       </section>
 
       <section className="card">

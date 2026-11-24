@@ -225,3 +225,4 @@ nav button.active::before { content: ""; position: absolute; top: -1px; width: 2
 .odds-row.mcd { grid-template-columns: 96px 1fr 1fr; }
 .enter { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
 .enter input { background: var(--bg); color: var(--text); border: 1px solid #2A5062; border-radius: 12px; padding: 12px; font: 600 22px var(--mono); width: 100%; }
+.enter.small input { font-size: 16px; padding: 9px 12px; }
