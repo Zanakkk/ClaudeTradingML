@@ -116,7 +116,7 @@ export const api = onRequest(
           res, 200,
           {
             symbol, name: c.meta.shortName || "", currency: c.meta.currency, tf: req.query.tf in PREDICT_TF ? req.query.tf : "1h",
-            horizonLabel: cfg.label, interval: cfg.interval, ...out,
+            horizonLabel: cfg.label, interval: cfg.interval, fee: feeInfo(settings), ...out,
             history: { t: c.t.slice(-60), close: c.close.slice(-60) },
           },
           "public, max-age=30, s-maxage=60"

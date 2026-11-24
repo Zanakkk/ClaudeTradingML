@@ -223,3 +223,5 @@ nav button.active::before { content: ""; position: absolute; top: -1px; width: 2
 .mc-box { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--bg); border: 1px solid #2A5062; }
 .mc-box .eyebrow { margin-bottom: 6px; color: var(--amber); } .mc-box p { margin: 0; font-size: 13.5px; line-height: 1.55; }
 .odds-row.mcd { grid-template-columns: 96px 1fr 1fr; }
+.enter { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+.enter input { background: var(--bg); color: var(--text); border: 1px solid #2A5062; border-radius: 12px; padding: 12px; font: 600 22px var(--mono); width: 100%; }

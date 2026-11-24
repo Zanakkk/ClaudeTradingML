@@ -36,17 +36,21 @@ function Fan({ d }) {
   const W = 340, H = 170, padR = 44, padY = 14;
   const hist = d.history.close.slice(-40);
   const total = hist.length + d.horizon;
-  const hi = Math.max(...hist, d.price + d.cone.at(-1).s2), lo = Math.min(...hist, d.price - d.cone.at(-1).s2);
+  const mc = d.mc;
+  const up2 = mc ? d.price * (1 + mc.bands.at(-1).p95 / 100) : d.price + d.cone.at(-1).s2;
+  const dn2 = mc ? d.price * (1 + mc.bands.at(-1).p5 / 100) : d.price - d.cone.at(-1).s2;
+  const hi = Math.max(...hist, up2), lo = Math.min(...hist, dn2);
   const x = (i) => (i / (total - 1)) * (W - padR);
   const y = (v) => padY + (1 - (v - lo) / (hi - lo || 1)) * (H - padY * 2);
   const base = hist.length - 1;
   const band = (key) => {
-    const up = d.cone.map((c, k) => `${x(base + k + 1).toFixed(1)},${y(d.price + c[key]).toFixed(1)}`);
-    const dn = d.cone.map((c, k) => `${x(base + k + 1).toFixed(1)},${y(d.price - c[key]).toFixed(1)}`).reverse();
+    const hiV = (k) => (mc ? d.price * (1 + mc.bands[k][key === "s2" ? "p95" : "p75"] / 100) : d.price + d.cone[k][key]);
+    const loV = (k) => (mc ? d.price * (1 + mc.bands[k][key === "s2" ? "p5" : "p25"] / 100) : d.price - d.cone[k][key]);
+    const up = d.cone.map((_, k) => `${x(base + k + 1).toFixed(1)},${y(hiV(k)).toFixed(1)}`);
+    const dn = d.cone.map((_, k) => `${x(base + k + 1).toFixed(1)},${y(loV(k)).toFixed(1)}`).reverse();
     return `${x(base).toFixed(1)},${y(d.price).toFixed(1)} ${up.join(" ")} ${dn.join(" ")}`;
   };
   const path = hist.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const c = d.cone.at(-1);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="fan" role="img" aria-label="Rentang harga yang mungkin">
       <polygon points={band("s2")} fill="rgba(242,184,75,.10)" />
@@ -55,11 +59,57 @@ function Fan({ d }) {
       <path d={path} fill="none" stroke={COLORS.text} strokeWidth="1.8" strokeLinejoin="round" />
       <circle cx={x(base)} cy={y(d.price)} r="3.5" fill={COLORS.amber} />
       <g className="mono" fontSize="10" fill={COLORS.muted}>
-        <text x={W - padR + 6} y={y(d.price + c.s2) + 3}>{fmt(d.price + c.s2)}</text>
+        <text x={W - padR + 6} y={y(up2) + 3}>{fmt(up2)}</text>
         <text x={W - padR + 6} y={y(d.price) + 3} fill={COLORS.amber}>{fmt(d.price)}</text>
-        <text x={W - padR + 6} y={y(d.price - c.s2) + 3}>{fmt(d.price - c.s2)}</text>
+        <text x={W - padR + 6} y={y(dn2) + 3}>{fmt(dn2)}</text>
       </g>
     </svg>
+  );
+}
+
+const usd = (n) => `${n < 0 ? "−" : "+"}$${Math.abs(n).toFixed(2)}`;
+function cdf(q, thr) { // peluang hasil akhir <= thr, dari 21 kuantil (tiap 5%)
+  if (thr <= q[0]) return 0;
+  if (thr >= q[20]) return 1;
+  for (let i = 0; i < 20; i++) if (thr < q[i + 1]) return (i + (q[i + 1] === q[i] ? 0 : (thr - q[i]) / (q[i + 1] - q[i]))) / 20;
+  return 1;
+}
+
+function McBlock({ d }) {
+  const [amt, setAmt] = useState(() => +localStorage.getItem("enter") || 100);
+  const set = (v) => { setAmt(v); if (v > 0) localStorage.setItem("enter", String(v)); };
+  const m = d.mc, f = d.fee;
+  const pos = Math.max(1, amt || 0);
+  const side = Math.max(f.min, (pos * f.pct) / 100) + f.fixed;
+  const rt = side * 2;
+  const val = (retPct) => (pos * retPct) / 100 - rt;
+  const net = val(m.tpPct), loss = -val(-m.slPct);
+  const pWin = (1 - cdf(m.q, (rt / pos) * 100)) * 100;
+  const ev = (m.pTP / 100) * net - (m.pSL / 100) * loss;
+  return (
+    <section className="card">
+      <h3>Monte Carlo · {m.iters.toLocaleString("id-ID")} jalur harga</h3>
+      <label className="enter">
+        <span>Mau masuk berapa ($)?</span>
+        <input type="number" inputMode="decimal" min="1" value={amt || ""} onChange={(e) => set(+e.target.value)} />
+      </label>
+      <div className="chips" style={{ margin: "8px 0 12px" }}>
+        {[25, 50, 100, 200, 500].map((v) => <button key={v} className={`chip ${amt === v ? "active" : ""}`} onClick={() => set(v)}>${v}</button>)}
+      </div>
+      <p className="s-line"><b>Beli</b> ${pos.toFixed(2)} <em>({(pos / d.price).toFixed(2)} lembar @ ${fmt(d.price)}) · fee bolak-balik ≈ ${rt.toFixed(2)}</em></p>
+
+      <div className="eyebrow" style={{ marginTop: 12 }}>Kalau ditahan {d.horizonLabel}</div>
+      <div className="odds-row mcd"><span>Terbaik 5%</span><span className="up">{usd(val(m.q[19]))}</span><span /></div>
+      <div className="odds-row mcd"><span>Tengah</span><span className={val(m.q[10]) >= 0 ? "up" : "down"}>{usd(val(m.q[10]))}</span><span /></div>
+      <div className="odds-row mcd"><span>Terburuk 5%</span><span className="down">{usd(val(m.q[1]))}</span><span /></div>
+      <p className="s-note">Peluang untung bersih (setelah fee): <b className={pWin >= 50 ? "up" : "down"}>{pWin.toFixed(0)}%</b></p>
+
+      <div className="eyebrow" style={{ marginTop: 12 }}>Kalau pakai target &amp; batas rugi</div>
+      <p className="s-line"><b className="up">Kena target</b> (+{m.tpPct.toFixed(1)}%) {usd(net)} · peluang <b>{m.pTP.toFixed(0)}%</b></p>
+      <p className="s-line"><b className="down">Kena batas rugi</b> (−{m.slPct.toFixed(1)}%) {usd(-loss)} · peluang <b>{m.pSL.toFixed(0)}%</b></p>
+      <p className="s-line"><b>Belum keduanya</b> dalam {d.horizonLabel} · peluang <b>{m.pNone.toFixed(0)}%</b></p>
+      <p className="s-note">Kalau diulang berkali-kali, rata-rata dari yang kena target/batas ≈ <b className={ev >= 0 ? "up" : "down"}>{usd(ev)}</b> per trade. Simulasi ini tidak menebak arah, jadi angka positif berarti target lebih besar dari fee dan risikonya, bukan karena harga pasti naik.</p>
+    </section>
   );
 }
 
@@ -115,8 +165,10 @@ export default function PredictView({ symbol }) {
       <section className="card">
         <h3>Rentang harga {d.horizonLabel} ke depan</h3>
         <Fan d={d} />
-        <p className="muted">Pita terang = sekitar 68% kemungkinan, pita pudar = sekitar 95%. Dari volatilitas terakhir, tanpa menebak arah.</p>
+        <p className="muted">{d.mc ? "Dari 1.000 jalur simulasi: pita terang = 50% jalur di tengah, pita pudar = 90%. Tanpa menebak arah." : "Pita terang = sekitar 68% kemungkinan, pita pudar = sekitar 95%. Dari volatilitas terakhir, tanpa menebak arah."}</p>
       </section>
+
+      {d.mc && d.fee && <McBlock d={d} />}
 
       <section className="card">
         <h3>Yang membentuk skor</h3>

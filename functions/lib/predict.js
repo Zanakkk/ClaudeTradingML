@@ -19,6 +19,57 @@ function crossUpAt(st, i) {
  *  2) analog historis: dulu, saat kondisinya mirip, harga bergerak apa setelah `horizon` candle
  *  3) uji mundur aturan sinyal pada simbol ini, sudah dikurangi fee
  */
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Monte Carlo 1.000 jalur harga: tiap candle simulasi = candle riwayat yang diambil acak (bentuk high/low/close
+// terhadap penutupan sebelumnya), tren masa lalu dibuang supaya tidak menebak arah. Berjalan di request yang sama,
+// jadi tidak menambah query ke Yahoo.
+function simulate(c, s, horizon, atrNow, price, iters = 1000) {
+  const n = c.close.length, start = Math.max(1, n - 750);
+  let ml = 0;
+  for (let i = start; i < n; i++) ml += Math.log(c.close[i] / c.close[i - 1]);
+  const adj = Math.exp(-ml / (n - start));
+  const shapes = [];
+  for (let i = start; i < n; i++) {
+    const b = c.close[i - 1];
+    shapes.push([(c.high[i] / b) * adj, (c.low[i] / b) * adj, (c.close[i] / b) * adj]);
+  }
+  const rnd = mulberry32(n * 131 + Math.round(price * 1000));
+  const slF = (s.slAtr * atrNow) / price, tpF = (s.tpAtr * atrNow) / price;
+  const ends = [], steps = Array.from({ length: horizon }, () => []);
+  let tp = 0, sl = 0;
+  for (let it = 0; it < iters; it++) {
+    let p = 1, done = false;
+    for (let k = 0; k < horizon; k++) {
+      const sh = shapes[Math.floor(rnd() * shapes.length)];
+      if (!done) {
+        if (p * sh[1] <= 1 - slF) { done = true; sl++; }       // pesimis: SL dicek lebih dulu
+        else if (p * sh[0] >= 1 + tpF) { done = true; tp++; }
+      }
+      p *= sh[2];
+      steps[k].push((p - 1) * 100);
+    }
+    ends.push((p - 1) * 100);
+  }
+  const num = (a, b) => a - b;
+  ends.sort(num);
+  const q = (arr, pr) => arr[Math.min(arr.length - 1, Math.floor(pr * arr.length))];
+  return {
+    iters, tpPct: tpF * 100, slPct: slF * 100,
+    pTP: (tp / iters) * 100, pSL: (sl / iters) * 100, pNone: ((iters - tp - sl) / iters) * 100,
+    pUp: (ends.filter((x) => x > 0).length / iters) * 100,
+    q: Array.from({ length: 21 }, (_, i) => ends[Math.min(iters - 1, Math.round((i / 20) * (iters - 1)))]),
+    bands: steps.map((v) => { v.sort(num); return { p5: q(v, 0.05), p25: q(v, 0.25), p50: q(v, 0.5), p75: q(v, 0.75), p95: q(v, 0.95) }; }),
+  };
+}
+
 export function predict(c, s, horizon) {
   const n = c.close.length;
   if (n < 150) return { error: "not_enough_data" };
@@ -108,5 +159,7 @@ export function predict(c, s, horizon) {
     tpPct: ((a[now] * s.tpAtr) / price) * 100,
   };
 
-  return { price, atrPct: (a[now] / price) * 100, horizon, score, outlook, confidence, factors, analog, basePUp, cone, backtest };
+  const mc = simulate(c, s, horizon, a[now], price);
+
+  return { price, atrPct: (a[now] / price) * 100, horizon, score, outlook, confidence, factors, analog, basePUp, cone, backtest, mc };
 }
