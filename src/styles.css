@@ -222,3 +222,4 @@ nav button.active::before { content: ""; position: absolute; top: -1px; width: 2
 .std { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.8; }
 .mc-box { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--bg); border: 1px solid #2A5062; }
 .mc-box .eyebrow { margin-bottom: 6px; color: var(--amber); } .mc-box p { margin: 0; font-size: 13.5px; line-height: 1.55; }
+.odds-row.mcd { grid-template-columns: 96px 1fr 1fr; }

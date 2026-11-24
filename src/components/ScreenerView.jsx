@@ -3,8 +3,9 @@ import { getJSON, errText, fmt, pct } from "../lib/api.js";
 import { Icon, Notice } from "./ui.jsx";
 
 const FILTERS = [["all", "Semua"], ["strong", "Lolos standar kuat"], ["KANDIDAT", "Kandidat"], ["PANTAU", "Pantau"], ["setup", "Sinyal aktif"]];
+const DOLLARS = [[0, "Semua"], [1, "≥ $1"], [2, "≥ $2"], [3, "≥ $3"], [5, "≥ $5"]];
 const PROFITS = [[0, "Semua"], [2, "≥ 2%"], [3, "≥ 3%"], [5, "≥ 5%"]];
-const SORTS = [["score", "Skor"], ["win", "Win %"], ["vol", "Volatil"], ["net", "Untung %"]];
+const SORTS = [["score", "Skor"], ["win", "Win %"], ["vol", "Volatil"], ["net", "Untung %"], ["usd", "Untung $"]];
 const VERDICT = { KANDIDAT: "Kandidat", PANTAU: "Pantau", HINDARI: "Hindari" };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const money = (n) => (n >= 1e6 ? `$${(n / 1e6).toFixed(1)}jt` : `$${Math.round(n / 1e3)}rb`);
@@ -22,6 +23,7 @@ function plan(r, cfg, fee) {
   return {
     pos, shares: pos / r.price, sl: r.price * (1 - slF), tp: r.price * (1 + tpF),
     maxLoss: pos * slF + f2, net: pos * tpF - f2, fee: f2, be: (f2 / pos) * 100,
+    mcMed: r.mc ? (pos * r.mc.median) / 100 : null, mcBad: r.mc ? (pos * r.mc.p5) / 100 : null,
   };
 }
 
@@ -60,8 +62,16 @@ function Card({ r, rank, onOpen, cfg, fee }) {
         <div className="s-plan">
           <div className="eyebrow">Versi simpel</div>
           <p className="s-line"><b>1. Beli</b> senilai <b>{usd2(pl.pos)}</b> <em>({pl.shares.toFixed(2)} lembar, harga ${fmt(r.price)})</em></p>
-          <p className="s-line"><b>2. Jual untung</b> kalau harga sampai <b className="up">${fmt(pl.tp)}</b> → kamu dapat <b className="up">+{usd2(pl.net)}</b> <em>(sudah dipotong fee)</em></p>
+          <p className="s-line"><b>2. Jual untung</b> kalau harga sampai <b className="up">${fmt(pl.tp)}</b> → kamu dapat <b className="up">+{usd2(pl.net)}</b> <em>(sudah dipotong fee){r.holdH ? ` · biasanya ±${r.holdH} jam` : ""}</em></p>
           <p className="s-line"><b>3. Jual rugi</b> kalau harga turun ke <b className="down">${fmt(pl.sl)}</b> → kamu rugi <b className="down">−{usd2(pl.maxLoss)}</b></p>
+          {pl.mcMed != null && (
+            <div className="s-odds">
+              <div className="eyebrow">Monte Carlo dalam dolar · 10 trade, masing-masing {usd2(pl.pos)}</div>
+              <div className="odds-row mcd"><span>Hasil tengah</span><span className={pl.mcMed >= 0 ? "up" : "down"}>{pl.mcMed >= 0 ? "+" : "−"}{usd2(pl.mcMed)}</span><span>peluang untung {r.mc.pProfit}%</span></div>
+              <div className="odds-row mcd"><span>Skenario buruk</span><span className="down">{pl.mcBad >= 0 ? "+" : "−"}{usd2(pl.mcBad)}</span><span>(5% terburuk)</span></div>
+              {r.holdH && <p className="s-note">Satu trade rata-rata berlangsung ±{r.holdH} jam, jadi 10 trade ≈ {Math.round((r.holdH * 10) / 6.5)} hari bursa.</p>}
+            </div>
+          )}
           {r.hit?.h1 && (
             <div className="s-odds">
               <div className="eyebrow">Peluang dari riwayat saham ini</div>
@@ -96,11 +106,12 @@ export default function ScreenerView({ onOpen }) {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("score");
+  const [cfg, setCfg] = useState(() => load("calc", { capital: 100, n: 2, risk: 2 }));
   const [minProfit, setMinProfit] = useState(0);
+  const [minUsd, setMinUsd] = useState(0);
   const [onlyCap, setOnlyCap] = useState(false);
   const [custom, setCustom] = useState(() => load("screenList", null));
   const [edit, setEdit] = useState(false);
-  const [cfg, setCfg] = useState(() => load("calc", { capital: 100, n: 2, risk: 2 }));
   const setC = (k, v) => setCfg((c) => { const n = { ...c, [k]: v }; localStorage.setItem("calc", JSON.stringify(n)); return n; });
   const [draft, setDraft] = useState("");
 
@@ -117,13 +128,15 @@ export default function ScreenerView({ onOpen }) {
   const list = useMemo(() => {
     if (!data) return [];
     let r = data.results.filter((x) => !onlyCap || x.price <= (data.maxPriceUsd || 10));
+    const usdOf = (x) => (data.fee ? plan(x, cfg, data.fee)?.net ?? -1 : -1);
     if (minProfit) r = r.filter((x) => x.netTpPct >= minProfit);
+    if (minUsd) r = r.filter((x) => usdOf(x) >= minUsd);
     if (filter === "setup") r = r.filter((x) => x.setupNow);
     else if (filter === "strong") r = r.filter((x) => x.strong);
     else if (filter !== "all") r = r.filter((x) => x.verdict === filter);
-    const key = { score: (x) => x.score, win: (x) => x.bt.winShr, vol: (x) => x.atrPct, net: (x) => x.netTpPct }[sort];
+    const key = { score: (x) => x.score, win: (x) => x.bt.winShr, vol: (x) => x.atrPct, net: (x) => x.netTpPct, usd: (x) => (data.fee ? plan(x, cfg, data.fee)?.net ?? -1 : -1) }[sort];
     return [...r].sort((a, b) => key(b) - key(a));
-  }, [data, filter, sort, onlyCap, minProfit]);
+  }, [data, filter, sort, onlyCap, minProfit, minUsd, cfg]);
 
   const saveList = () => {
     const syms = [...new Set(draft.split(/[\s,;]+/).map((x) => x.trim().toUpperCase()).filter(Boolean))].slice(0, 120);
@@ -167,6 +180,10 @@ export default function ScreenerView({ onOpen }) {
       <div className="chips">
         <span className="chip-label">Untung bersih target</span>
         {PROFITS.map(([k, l]) => <button key={k} className={`chip ${minProfit === k ? "active" : ""}`} onClick={() => setMinProfit(k)}>{l}</button>)}
+      </div>
+      <div className="chips">
+        <span className="chip-label">Untung target ($)</span>
+        {DOLLARS.map(([k, l]) => <button key={k} className={`chip ${minUsd === k ? "active" : ""}`} onClick={() => setMinUsd(k)}>{l}</button>)}
       </div>
       <div className="seg">
         {SORTS.map(([k, l]) => <button key={k} className={sort === k ? "active" : ""} onClick={() => setSort(k)}>{l}</button>)}

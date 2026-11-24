@@ -28,5 +28,5 @@ export async function runScreener(symbols, settings, name = {}) {
   });
   const ok = res.filter((r) => r.status === "ok").sort((a, b) => b.score - a.score);
   const skipped = res.filter((r) => r.status !== "ok").map((r) => r.symbol);
-  return { v: 3, generatedAt: Date.now(), results: ok, skipped };
+  return { v: 4, generatedAt: Date.now(), results: ok, skipped };
 }

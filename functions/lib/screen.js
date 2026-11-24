@@ -20,7 +20,7 @@ function entrySignals(h) {
   return { sig, a, e50, k };
 }
 
-function backtest(h, ind, s, rtFeePct) {
+function backtest(h, ind, s, rtFeePct, holds) {
   const trades = [];
   const n = h.close.length;
   for (let i = 55; i < n - 1; i++) {
@@ -36,6 +36,7 @@ function backtest(h, ind, s, rtFeePct) {
     }
     if (exit == null) { j = Math.min(i + 12, n - 1); exit = h.close[j]; }
     trades.push(((exit - entry) / entry) * 100 - rtFeePct);
+    holds.push(j - i);
     i = j; // tidak boleh tumpang tindih
   }
   return trades;
@@ -124,7 +125,10 @@ export function analyze(symbol, h1, d1, s) {
   const slPct = s.slAtr * atrPct;
 
   // backtest aturan yang sama pada riwayat saham ini
-  const tr = backtest(h1, ind, s, rtFeePct);
+  const holds = [];
+  const tr = backtest(h1, ind, s, rtFeePct, holds);
+  const hs = [...holds].sort((a, b) => a - b);
+  const holdH = hs.length ? hs[Math.floor(hs.length / 2)] : null; // median lama trade (jam)
   const nT = tr.length;
   const wins = tr.filter((x) => x > 0).length;
   const winRate = nT ? wins / nT : null;
@@ -189,7 +193,7 @@ export function analyze(symbol, h1, d1, s) {
     bt: { trades: nT, winRate, winShr, avgNet, profitFactor },
     hit: { h1: hitStats(h1, tpPct / 100, slPct / 100, 1), d1: hitStats(h1, tpPct / 100, slPct / 100, 7) },
     entry: setupNow ? { price, sl: price - s.slAtr * A, tp: price + s.tpAtr * A } : null,
-    mc, netTpPct, checks, strong,
+    mc, netTpPct, holdH, checks, strong,
     score: Math.round(score), verdict, reasons,
   };
 }
