@@ -226,7 +226,7 @@ export default function ScreenerView({ onOpen }) {
       </section>
 
       <p className="disc">
-        “Peluang menang historis” = persentase trade yang untung bersih (setelah fee) saat aturan 1 jam yang sama diuji pada ±6 bulan riwayat saham itu, dikoreksi ke bawah bila sampelnya sedikit. Ini bukan jaminan: masa lalu tidak menjamin masa depan, hasil terbaik dari puluhan saham cenderung terlihat lebih bagus dari kenyataan, dan saham murah bisa gap turun, sulit dijual, atau reverse split. Gunakan SL, jangan pakai seluruh modal pada satu saham. Bukan nasihat keuangan.
+        “Peluang menang historis” = persentase trade yang untung bersih (setelah fee) saat aturan 1 jam yang sama diuji pada ±2 tahun riwayat saham itu, dikoreksi ke bawah bila sampelnya sedikit. Ini bukan jaminan: masa lalu tidak menjamin masa depan, hasil terbaik dari puluhan saham cenderung terlihat lebih bagus dari kenyataan, dan saham murah bisa gap turun, sulit dijual, atau reverse split. Gunakan SL, jangan pakai seluruh modal pada satu saham. Bukan nasihat keuangan.
       </p>
     </div>
   );

@@ -18,7 +18,7 @@ async function pool(items, limit, fn) {
 export async function runScreener(symbols, settings, name = {}) {
   const res = await pool(symbols, 8, async (symbol) => {
     try {
-      const [h1, d1] = await Promise.all([candles(symbol, "1h", "6mo"), candles(symbol, "1d", "6mo")]);
+      const [h1, d1] = await Promise.all([candles(symbol, "1h", "2y"), candles(symbol, "1d", "6mo")]);
       const r = analyze(symbol, h1, d1, settings);
       r.name = h1.meta.shortName || h1.meta.longName || name[symbol] || "";
       return r;
@@ -28,5 +28,5 @@ export async function runScreener(symbols, settings, name = {}) {
   });
   const ok = res.filter((r) => r.status === "ok").sort((a, b) => b.score - a.score);
   const skipped = res.filter((r) => r.status !== "ok").map((r) => r.symbol);
-  return { v: 4, generatedAt: Date.now(), results: ok, skipped };
+  return { v: 5, generatedAt: Date.now(), results: ok, skipped };
 }
