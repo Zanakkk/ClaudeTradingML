@@ -19,18 +19,20 @@ const TABS = [
   ["signals", "signals", "Sinyal"],
   ["screener", "screener", "Screener"],
   ["chart", "chart", "Chart"],
-  ["predict", "predict", "Prediksi"],
-  ["portfolio", "journal", "Jurnal"],
   ["market", "market", "Pasar"],
+  ["portfolio", "journal", "Jurnal"],
 ];
 const DEFAULT_PROFILE = { name: "", capital: 100, feeTier: "regular", risk: 5 };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 
 export default function App() {
   const [tab, setTab] = useState("screener");
+  const [cmode, setCmode] = useState("chart"); // di tab Chart: grafik | prediksi
+  const [jmode, setJmode] = useState("portfolio"); // di tab Jurnal: portofolio | akun
   const [symbol, setSymbol] = useState(() => localStorage.getItem("symbol") || "SPY");
   const [watch, setWatch] = useState(() => load("watch", ["SPY", "QQQ", "NVDA"]));
 
+  useEffect(() => { document.documentElement.style.zoom = localStorage.getItem("zoom") || "1"; }, []);
   const auth = useAuth();
   const user = auth.user;
   const [profile, setProfile] = useState(() => ({ ...DEFAULT_PROFILE, ...load("profile", {}) }));
@@ -58,7 +60,7 @@ export default function App() {
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
   const askRecord = (item) => { if (!user) { setAuthMode("signup"); return; } setRecord(item); };
 
-  const open = useCallback((s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab((t) => (t === "predict" ? "predict" : "chart")); window.scrollTo(0, 0); }, []);
+  const open = useCallback((s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab("chart"); window.scrollTo(0, 0); }, []);
   const toggleWatch = useCallback((s) => setWatch((w) => {
     const n = w.includes(s) ? w.filter((x) => x !== s) : [...w, s];
     localStorage.setItem("watch", JSON.stringify(n));
@@ -73,7 +75,7 @@ export default function App() {
         <div className="top">
           <div className="brand">Trading<span>ML</span></div>
           <SessionBar />
-          <button className="avatar" aria-label="Akun" onClick={() => setTab("account")}>{user ? (profile.name || user.name || user.email || "?").trim().slice(0, 1).toUpperCase() : <Icon name="user" />}</button>
+          <button className="avatar" aria-label="Akun" onClick={() => { setJmode("account"); setTab("portfolio"); window.scrollTo(0, 0); }}>{user ? (profile.name || user.name || user.email || "?").trim().slice(0, 1).toUpperCase() : <Icon name="user" />}</button>
         </div>
         <SearchBar onPick={open} />
       </header>
@@ -82,14 +84,20 @@ export default function App() {
         {tab === "screener" && <ScreenerView onOpen={go} onRecord={askRecord} profile={profile} feePct={feePct} />}
         {tab === "market" && watch.length > 0 && <div style={{ marginBottom: 12 }}><WatchlistView watch={watch} onOpen={go} onToggleWatch={toggleWatch} /></div>}
         {tab === "market" && <MarketView onOpen={(s) => { setSymbol(s); localStorage.setItem("symbol", s); setTab("chart"); window.scrollTo(0, 0); }} watch={watch} onToggleWatch={toggleWatch} />}
-        {tab === "chart" && <ChartView key={symbol} symbol={symbol} watched={watch.includes(symbol)} onToggleWatch={toggleWatch} />}
-        {tab === "portfolio" && <PortfolioView key={bump} user={user} onLogin={setAuthMode} onOpen={go} />}
-        {tab === "account" && <AccountView user={user} profile={profile} saveProfile={saveProfile} onLogin={setAuthMode} onReplayIntro={() => setOnboard(true)} />}
-        {tab === "predict" && <PredictView key={symbol} symbol={symbol} />}
+        {tab === "chart" && (
+          <div className="seg sub"><button className={cmode === "chart" ? "active" : ""} onClick={() => setCmode("chart")}>Grafik</button><button className={cmode === "predict" ? "active" : ""} onClick={() => setCmode("predict")}>Prediksi &amp; beli</button></div>
+        )}
+        {tab === "chart" && cmode === "chart" && <ChartView key={symbol} symbol={symbol} watched={watch.includes(symbol)} onToggleWatch={toggleWatch} />}
+        {tab === "chart" && cmode === "predict" && <PredictView key={symbol} symbol={symbol} onRecord={askRecord} />}
+        {tab === "portfolio" && (
+          <div className="seg sub"><button className={jmode === "portfolio" ? "active" : ""} onClick={() => setJmode("portfolio")}>Portofolio</button><button className={jmode === "account" ? "active" : ""} onClick={() => setJmode("account")}>Akun &amp; pengaturan</button></div>
+        )}
+        {tab === "portfolio" && jmode === "portfolio" && <PortfolioView key={bump} user={user} onLogin={setAuthMode} onOpen={go} />}
+        {tab === "portfolio" && jmode === "account" && <AccountView user={user} profile={profile} saveProfile={saveProfile} onLogin={setAuthMode} onReplayIntro={() => setOnboard(true)} />}
       </main>
       <nav>
         {TABS.map(([k, icon, label]) => (
-          <button key={k} className={tab === k ? "active" : ""} onClick={() => { setTab(k); window.scrollTo(0, 0); }}>
+          <button key={k} className={tab === k ? "active" : ""} onClick={() => { setTab(k); if (k === "portfolio") setJmode("portfolio"); window.scrollTo(0, 0); }}>
             <Icon name={icon} /><span>{label}</span>
           </button>
         ))}

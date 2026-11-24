@@ -5,6 +5,7 @@ import { logout } from "../lib/firebase.js";
 export default function AccountView({ user, profile, saveProfile, onLogin, onReplayIntro }) {
   const [p, setP] = useState({ name: profile.name || user?.name || "", capital: profile.capital, feeTier: profile.feeTier, risk: profile.risk });
   const [msg, setMsg] = useState("");
+  const [zoom, setZoom] = useState(() => localStorage.getItem("zoom") || "1");
   const [busy, setBusy] = useState(false);
   const [del, setDel] = useState(false);
   const [word, setWord] = useState("");
@@ -78,6 +79,16 @@ export default function AccountView({ user, profile, saveProfile, onLogin, onRep
           <button className="btn" onClick={save} disabled={busy || !dirty || !valid}>Simpan</button>
           {msg && <span className="muted" role="status">{msg}</span>}
         </div>
+      </section>
+
+      <section className="card">
+        <h3>Tampilan</h3>
+        <div className="seg">
+          {[["1", "Normal"], ["1.1", "Besar"], ["1.2", "Lebih besar"]].map(([z, l]) => (
+            <button key={z} type="button" className={zoom === z ? "active" : ""} onClick={() => { setZoom(z); localStorage.setItem("zoom", z); document.documentElement.style.zoom = z; }}>{l}</button>
+          ))}
+        </div>
+        <p className="muted" style={{ marginTop: 8 }}>Ukuran teks dan tampilan. Hanya tersimpan di HP ini.</p>
       </section>
 
       <section className="card">

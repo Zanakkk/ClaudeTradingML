@@ -25,6 +25,7 @@ export default function MarketView({ onOpen, watch, onToggleWatch }) {
 
   return (
     <div className="stack">
+      <p className="muted pad">Pasar hanya menampilkan harga dan pergerakan hari ini, tanpa saran beli. Untuk rekomendasi, lihat Sinyal atau Screener.</p>
       <div className="two">
         <section className="card"><h3>Top naik</h3>{gain.map((x) => <QuoteRow key={x.symbol} q={x} onOpen={onOpen} />)}</section>
         <section className="card"><h3>Top turun</h3>{lose.map((x) => <QuoteRow key={x.symbol} q={x} onOpen={onOpen} />)}</section>

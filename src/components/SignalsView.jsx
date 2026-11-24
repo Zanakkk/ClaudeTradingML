@@ -45,7 +45,7 @@ export default function SignalsView({ onOpen }) {
     <div className="stack">
       <section className="hero">
         <div>
-          <div className="eyebrow">Pemindai 15 menit</div>
+          <div className="eyebrow">Sinyal · pemindai otomatis tiap 15 menit</div>
           <h1>{buys ? `${buys} sinyal beli` : "Belum ada sinyal beli"}</h1>
           <p>{buys ? "Ketuk kartu untuk melihat chart dan rencana trade." : "Pemindai berjalan tiap 15 menit selama bursa AS buka dan hanya memberi tanda saat tren, timing, dan fee sama-sama lolos."}</p>
         </div>

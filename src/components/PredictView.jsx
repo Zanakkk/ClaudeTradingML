@@ -75,7 +75,7 @@ function cdf(q, thr) { // peluang hasil akhir <= thr, dari 21 kuantil (tiap 5%)
   return 1;
 }
 
-function McBlock({ d }) {
+function McBlock({ d, symbol, onRecord }) {
   const [amt, setAmt] = useState(() => +localStorage.getItem("enter") || 100);
   const set = (v) => { setAmt(v); if (v > 0) localStorage.setItem("enter", String(v)); };
   const m = d.mc, f = d.fee;
@@ -108,12 +108,15 @@ function McBlock({ d }) {
       <p className="s-line"><b className="up">Kena target</b> (+{m.tpPct.toFixed(1)}%) {usd(net)} · peluang <b>{m.pTP.toFixed(0)}%</b></p>
       <p className="s-line"><b className="down">Kena batas rugi</b> (−{m.slPct.toFixed(1)}%) {usd(-loss)} · peluang <b>{m.pSL.toFixed(0)}%</b></p>
       <p className="s-line"><b>Belum keduanya</b> dalam {d.horizonLabel} · peluang <b>{m.pNone.toFixed(0)}%</b></p>
+      {onRecord && (
+        <button className="btn wide rec" onClick={() => onRecord({ symbol, name: symbol, price: d.price, usd: pos, sl: d.price * (1 - m.slPct / 100), tp: d.price * (1 + m.tpPct / 100), pred: { win: Math.round(m.pTP), mc: Math.round(pWin), score: d.score, strong: false } })}>Catat masuk ${pos.toFixed(0)} di {symbol}</button>
+      )}
       <p className="s-note">Kalau diulang berkali-kali, rata-rata dari yang kena target/batas ≈ <b className={ev >= 0 ? "up" : "down"}>{usd(ev)}</b> per trade. Simulasi ini tidak menebak arah, jadi angka positif berarti target lebih besar dari fee dan risikonya, bukan karena harga pasti naik.</p>
     </section>
   );
 }
 
-export default function PredictView({ symbol }) {
+export default function PredictView({ symbol, onRecord }) {
   const [tf, setTf] = useState(() => localStorage.getItem("ptf") || "1h");
   const [d, setD] = useState(null);
   const [error, setError] = useState(null);
@@ -168,7 +171,7 @@ export default function PredictView({ symbol }) {
         <p className="muted">{d.mc ? "Dari 1.000 jalur simulasi: pita terang = 50% jalur di tengah, pita pudar = 90%. Tanpa menebak arah." : "Pita terang = sekitar 68% kemungkinan, pita pudar = sekitar 95%. Dari volatilitas terakhir, tanpa menebak arah."}</p>
       </section>
 
-      {d.mc && d.fee && <McBlock d={d} />}
+      {d.mc && d.fee && <McBlock d={d} symbol={symbol} onRecord={onRecord} />}
 
       <section className="card">
         <h3>Yang membentuk skor</h3>

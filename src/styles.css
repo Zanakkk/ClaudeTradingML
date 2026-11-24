@@ -285,3 +285,6 @@ nav button span { font-size: 10px; }
 .pw button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: 0; color: var(--amber); font: 600 12px var(--body); cursor: pointer; padding: 6px; }
 .auth h2, .auth .brand.lg { margin: 0 0 4px; }
 .auth .btn.wide, .overlay .btn.wide { text-align: center; justify-content: center; display: flex; align-items: center; }
+.seg.sub { margin-bottom: 12px; }
+.seg.sub button { font-family: var(--body); font-weight: 600; }
+.card .rec { margin-top: 12px; }
