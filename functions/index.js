@@ -194,5 +194,20 @@ export const screen = onSchedule(
   async () => {
     const out = await runScreener(UNIVERSE, await getSettings());
     await db().doc("screener/latest").set(out);
+
+    // Arsip harian: 1 dokumen kecil per hari, ditulis hanya pada run setelah bursa tutup (jam 16 NY).
+    const ny = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    if (ny.getHours() >= 16) {
+      const day = `${ny.getFullYear()}-${String(ny.getMonth() + 1).padStart(2, "0")}-${String(ny.getDate()).padStart(2, "0")}`;
+      const rows = out.results.map((r) => ({
+        s: r.symbol, p: r.price, sc: r.score, v: r.verdict, st: r.strong ? 1 : 0, w: +r.bt.winShr.toFixed(3),
+        n: r.bt.trades, net: +r.netTpPct.toFixed(2), setup: r.setupNow ? 1 : 0, mc: r.mc?.pProfit ?? null,
+      }));
+      await db().doc(`screener_daily/${day}`).set({ day, savedAt: Date.now(), count: rows.length, rows });
+      // simpan 90 hari: hapus yang lebih lama (maks 5 dokumen per run)
+      const cutoff = new Date(ny.getTime() - 90 * 864e5).toISOString().slice(0, 10);
+      const old = await db().collection("screener_daily").where("day", "<", cutoff).limit(5).get();
+      await Promise.all(old.docs.map((d) => d.ref.delete()));
+    }
   }
 );
