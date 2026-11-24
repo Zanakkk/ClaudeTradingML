@@ -6,6 +6,8 @@ export const DEFAULTS = {
   riskPct: 1,             // risiko maksimal per trade (% modal)
   feePctPerSide: 0.3,     // Gotrade reguler 0.3%, Prestige 0.2% (cek di app) — berlaku beli DAN jual
   feePctPrestige: 0.2,    // tarif Prestige
+  feePctIdx: 0.2,         // saham Indonesia (IDX): rata-rata fee beli ~0,15% + jual ~0,25% ⇒ ~0,2%/sisi (cek broker-mu)
+  idrPerUsd: 16000,       // kurs perkiraan untuk saring likuiditas saham IDX (kurs live dipakai di aplikasi)
   minFeeUsd: 0.1,         // minimum fee per transaksi
   fixedFeeUsd: 0.02,      // biaya tetap kecil per transaksi (JFX, dll)
   slAtr: 1,               // stop loss = 1x ATR

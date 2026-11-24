@@ -12,6 +12,7 @@ import { UNIVERSE } from "./universe.js";
 import { getAuth } from "firebase-admin/auth";
 import { journalOp } from "./journal.js";
 import { DEFAULTS } from "./config.js";
+import { isIdx, curOf, feeSettings } from "./lib/market.js";
 
 initializeApp();
 const REGION = "us-central1";
@@ -112,13 +113,14 @@ export const api = onRequest(
         if (!symbol) return json(res, 400, { error: "symbol required" });
         const cfg = PREDICT_TF[req.query.tf] || PREDICT_TF["1h"];
         const [c, settings] = await Promise.all([candles(symbol, cfg.interval, cfg.range), getSettings()]);
-        const out = predict(c, settings, cfg.horizon);
+        const sset = feeSettings(symbol, settings);
+        const out = predict(c, sset, cfg.horizon);
         if (out.error) return json(res, 200, { symbol, error: out.error }, "public, max-age=60");
         return json(
           res, 200,
           {
             symbol, name: c.meta.shortName || "", currency: c.meta.currency, tf: req.query.tf in PREDICT_TF ? req.query.tf : "1h",
-            horizonLabel: cfg.label, interval: cfg.interval, fee: feeInfo(settings), ...out,
+            horizonLabel: cfg.label, interval: cfg.interval, fee: feeInfo(sset), cur: curOf(symbol), ...out,
             history: { t: c.t.slice(-60), close: c.close.slice(-60) },
           },
           "public, max-age=30, s-maxage=60"
@@ -131,15 +133,15 @@ export const api = onRequest(
         if (custom) {
           // daftar kustom: hitung langsung, tanpa cache
           const out = await runScreener(custom, settings);
-          return json(res, 200, { ...out, custom: true, maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
+          return json(res, 200, { ...out, custom: true, maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings), idrPerUsd: settings.idrPerUsd }, "public, max-age=60");
         }
         const ref = db().doc("screener/latest");
         const snap = await ref.get();
         const fresh = snap.exists && snap.data().v === 5 && Date.now() - snap.data().generatedAt < 20 * 60 * 1000;
-        if (fresh && !req.query.refresh) return json(res, 200, { ...snap.data(), maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
+        if (fresh && !req.query.refresh) return json(res, 200, { ...snap.data(), maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings), idrPerUsd: settings.idrPerUsd }, "public, max-age=60");
         const out = await runScreener(UNIVERSE, settings);
         await ref.set(out);
-        return json(res, 200, { ...out, maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
+        return json(res, 200, { ...out, maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings), idrPerUsd: settings.idrPerUsd }, "public, max-age=60");
       }
 
       if (["/api/journal", "/api/profile", "/api/account"].includes(req.path) && req.method === "POST") {
@@ -161,6 +163,9 @@ export const api = onRequest(
             if (["regular", "prestige"].includes(p.feeTier)) clean.feeTier = p.feeTier;
             if (Number(p.risk) > 0 && Number(p.risk) <= 1e6) clean.risk = Number(p.risk);
             if (typeof p.onboarded === "boolean") clean.onboarded = p.onboarded;
+            if (["USD", "IDR"].includes(p.currency)) clean.currency = p.currency;
+            if (p.rateManual === null) clean.rateManual = null;
+            else if (Number(p.rateManual) > 1000 && Number(p.rateManual) < 100000) clean.rateManual = Number(p.rateManual);
             clean.updatedAt = Date.now();
             await pref.set(clean, { merge: true });
           }
@@ -180,8 +185,9 @@ export const api = onRequest(
         // jurnal trade: tarif fee mengikuti pilihan akun (reguler / Prestige)
         const prof = (await pref.get()).data() || {};
         const fee = { pct: prof.feeTier === "prestige" ? settings.feePctPrestige : settings.feePctPerSide, min: settings.minFeeUsd, fixed: settings.fixedFeeUsd };
+        const feeIdx = { pct: settings.feePctIdx, min: 0, fixed: 0 };
         try {
-          return json(res, 200, await journalOp(db(), uid, body, fee), "no-store");
+          return json(res, 200, await journalOp(db(), uid, body, fee, feeIdx), "no-store");
         } catch (e) {
           if (e.message === "bad_input" || e.message === "full") return json(res, 400, { error: e.message }, "no-store");
           throw e;

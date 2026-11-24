@@ -13,7 +13,8 @@ import AuthScreen from "./components/AuthScreen.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import { Icon, SessionBar } from "./components/ui.jsx";
 import { useAuth } from "./lib/firebase.js";
-import { authed } from "./lib/api.js";
+import { authed, getJSON } from "./lib/api.js";
+import { setMoney } from "./lib/money.js";
 
 const TABS = [
   ["signals", "signals", "Sinyal"],
@@ -22,7 +23,7 @@ const TABS = [
   ["market", "market", "Pasar"],
   ["portfolio", "journal", "Jurnal"],
 ];
-const DEFAULT_PROFILE = { name: "", capital: 100, feeTier: "regular", risk: 5 };
+const DEFAULT_PROFILE = { name: "", capital: 100, feeTier: "regular", risk: 5, currency: "USD", rateManual: null };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 
 export default function App() {
@@ -33,6 +34,10 @@ export default function App() {
   const [watch, setWatch] = useState(() => load("watch", ["SPY", "QQQ", "NVDA"]));
 
   useEffect(() => { document.documentElement.style.zoom = localStorage.getItem("zoom") || "1"; }, []);
+  const [fxAuto, setFxAuto] = useState(() => +localStorage.getItem("fxAuto") || 16000);
+  useEffect(() => {
+    getJSON("/api/quotes?symbols=IDR=X").then((d) => { const p = d.results?.[0]?.price; if (p > 1000 && p < 100000) { setFxAuto(p); localStorage.setItem("fxAuto", String(p)); } }).catch(() => {});
+  }, []);
   const auth = useAuth();
   const user = auth.user;
   const [profile, setProfile] = useState(() => ({ ...DEFAULT_PROFILE, ...load("profile", {}) }));
@@ -41,6 +46,7 @@ export default function App() {
   const [record, setRecord] = useState(null);
   const [toast, setToast] = useState("");
   const [bump, setBump] = useState(0);
+  setMoney(profile.currency, profile.rateManual || fxAuto); // sebelum anak-anak dirender
   const feePct = profile.feeTier === "prestige" ? 0.2 : 0.3;
 
   // Muat profil dari akun saat masuk
@@ -93,7 +99,7 @@ export default function App() {
           <div className="seg sub"><button className={jmode === "portfolio" ? "active" : ""} onClick={() => setJmode("portfolio")}>Portofolio</button><button className={jmode === "account" ? "active" : ""} onClick={() => setJmode("account")}>Akun &amp; pengaturan</button></div>
         )}
         {tab === "portfolio" && jmode === "portfolio" && <PortfolioView key={bump} user={user} onLogin={setAuthMode} onOpen={go} />}
-        {tab === "portfolio" && jmode === "account" && <AccountView user={user} profile={profile} saveProfile={saveProfile} onLogin={setAuthMode} onReplayIntro={() => setOnboard(true)} />}
+        {tab === "portfolio" && jmode === "account" && <AccountView fxAuto={fxAuto} user={user} profile={profile} saveProfile={saveProfile} onLogin={setAuthMode} onReplayIntro={() => setOnboard(true)} />}
       </main>
       <nav>
         {TABS.map(([k, icon, label]) => (

@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { authed, errText } from "../lib/api.js";
 import { logout } from "../lib/firebase.js";
+import { toDisp, fromDisp, sym, rate, cur } from "../lib/money.js";
 
-export default function AccountView({ user, profile, saveProfile, onLogin, onReplayIntro }) {
+export default function AccountView({ user, profile, saveProfile, onLogin, onReplayIntro, fxAuto }) {
+  const [rateIn, setRateIn] = useState(profile.rateManual || "");
   const [p, setP] = useState({ name: profile.name || user?.name || "", capital: profile.capital, feeTier: profile.feeTier, risk: profile.risk });
   const [msg, setMsg] = useState("");
   const [zoom, setZoom] = useState(() => localStorage.getItem("zoom") || "1");
@@ -10,7 +12,7 @@ export default function AccountView({ user, profile, saveProfile, onLogin, onRep
   const [del, setDel] = useState(false);
   const [word, setWord] = useState("");
   const dirty = p.name !== (profile.name || user?.name || "") || p.capital !== profile.capital || p.feeTier !== profile.feeTier || p.risk !== profile.risk;
-  const valid = p.capital >= 10 && p.risk > 0;
+  const valid = p.capital > 0 && p.risk > 0;
 
   async function save() {
     setBusy(true); setMsg("");
@@ -62,10 +64,25 @@ export default function AccountView({ user, profile, saveProfile, onLogin, onRep
       )}
 
       <section className="card">
+        <h3>Mata uang &amp; kurs</h3>
+        <div className="seg">
+          <button type="button" className={cur() === "IDR" ? "active" : ""} onClick={() => saveProfile({ ...profile, currency: "IDR" })}>Rupiah (Rp)</button>
+          <button type="button" className={cur() === "USD" ? "active" : ""} onClick={() => saveProfile({ ...profile, currency: "USD" })}>Dollar ($)</button>
+        </div>
+        <p className="muted" style={{ marginTop: 8 }}>Semua nominal (modal, mau masuk berapa, untung/rugi, jurnal) tampil dan diisi dalam mata uang ini. Saham AS tetap dihitung dalam dolar lalu dikonversi; saham Indonesia (.JK) dalam rupiah.</p>
+        <div className="aform">
+          <label>Kurs: 1 USD = Rp
+            <input type="number" inputMode="decimal" min="1000" value={rateIn} placeholder={String(Math.round(fxAuto || rate()))} onChange={(e) => setRateIn(+e.target.value || "")} onBlur={() => saveProfile({ ...profile, rateManual: rateIn || null })} />
+          </label>
+        </div>
+        <p className="muted">{profile.rateManual ? "Kurs manual dipakai. " : `Kurs otomatis dari pasar: Rp ${Math.round(fxAuto || rate()).toLocaleString("id-ID")}. `}{profile.rateManual && <button className="link" onClick={() => { setRateIn(""); saveProfile({ ...profile, rateManual: null }); }}>Pakai otomatis</button>}</p>
+      </section>
+
+      <section className="card">
         <h3>Pengaturan trading</h3>
         <div className="aform">
           {user && <label>Nama panggilan<input value={p.name} maxLength={40} onChange={(e) => setP({ ...p, name: e.target.value })} /></label>}
-          <label>Modal ($)<input type="number" inputMode="decimal" min="10" value={p.capital || ""} onChange={(e) => setP({ ...p, capital: +e.target.value })} /></label>
+          <label>Modal ({sym()})<input type="number" inputMode="decimal" min="1" value={p.capital ? toDisp(p.capital) : ""} onChange={(e) => setP({ ...p, capital: fromDisp(+e.target.value) })} /></label>
           <div className="fieldset">
             <span>Tarif Gotrade</span>
             <div className="seg">
@@ -73,7 +90,7 @@ export default function AccountView({ user, profile, saveProfile, onLogin, onRep
               <button type="button" className={p.feeTier === "prestige" ? "active" : ""} onClick={() => setP({ ...p, feeTier: "prestige" })}>Prestige 0,2%</button>
             </div>
           </div>
-          <label>Batas rugi per trade ($)<input type="number" inputMode="decimal" min="0.5" step="0.5" value={p.risk || ""} onChange={(e) => setP({ ...p, risk: +e.target.value })} /></label>
+          <label>Batas rugi per trade ({sym()})<input type="number" inputMode="decimal" min="0" value={p.risk ? toDisp(p.risk) : ""} onChange={(e) => setP({ ...p, risk: fromDisp(+e.target.value) })} /></label>
         </div>
         <div className="row-btn" style={{ marginTop: 12 }}>
           <button className="btn" onClick={save} disabled={busy || !dirty || !valid}>Simpan</button>

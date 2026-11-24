@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { authed, getJSON, errText, fmt, pct } from "../lib/api.js";
 import { Notice, Spark } from "./ui.jsx";
+import { money, moneyS, px, pxSym, natToUsd } from "../lib/money.js";
 
-const m$ = (n) => `${n < 0 ? "−" : "+"}$${Math.abs(n).toFixed(2)}`;
+const m$ = (n) => moneyS(n);
 const day = (t) => new Date(t).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 
 export default function PortfolioView({ user, onLogin, onOpen }) {
@@ -39,16 +40,16 @@ export default function PortfolioView({ user, onLogin, onOpen }) {
   if (error && !data) return <Notice title="Portofolio belum bisa dimuat" text={errText(error)} action="Coba lagi" onAction={load} />;
   if (!data) return <div className="skeleton tall" />;
 
-  const fee = data.fee;
-  const side = (u) => Math.max(fee.min, (u * fee.pct) / 100) + fee.fixed;
+  const sideOf = (t, a) => { const f = t.cur === "IDR" ? data.feeIdx || { pct: 0.2, min: 0, fixed: 0 } : data.fee; return Math.max(f.min, (a * f.pct) / 100) + f.fixed; };
+  const U = (t, x) => natToUsd(x, t.cur || "USD"); // nominal trade → USD
   const open = data.trades.filter((t) => t.status === "open");
   const closed = data.trades.filter((t) => t.status === "closed").sort((a, b) => a.closedAt - b.closedAt);
-  const unreal = (t) => { const p = live[t.symbol]; return p == null ? null : t.shares * (p - t.entryPrice) - t.feeIn - side(t.shares * p); };
+  const unreal = (t) => { const p = live[t.symbol]; return p == null ? null : U(t, t.shares * (p - t.entryPrice) - t.feeIn - sideOf(t, t.shares * p)); };
 
   const wins = closed.filter((t) => t.pnl > 0), losses = closed.filter((t) => t.pnl <= 0);
-  const total = closed.reduce((s, t) => s + t.pnl, 0);
-  const gp = wins.reduce((s, t) => s + t.pnl, 0), gl = -losses.reduce((s, t) => s + t.pnl, 0);
-  const curve = closed.reduce((a, t) => [...a, (a.at(-1) ?? 0) + t.pnl], [0]);
+  const total = closed.reduce((s, t) => s + U(t, t.pnl), 0);
+  const gp = wins.reduce((s, t) => s + U(t, t.pnl), 0), gl = -losses.reduce((s, t) => s + U(t, t.pnl), 0);
+  const curve = closed.reduce((a, t) => [...a, (a.at(-1) ?? 0) + U(t, t.pnl)], [0]);
   const unrealSum = open.reduce((s, t) => s + (unreal(t) ?? 0), 0);
   const withPred = closed.filter((t) => t.pred?.win != null);
   const predWin = withPred.length ? (withPred.reduce((s, t) => s + t.pred.win, 0) / withPred.length) : null;
@@ -64,7 +65,7 @@ export default function PortfolioView({ user, onLogin, onOpen }) {
     <div className="stack">
       <section className="card hero-s">
         <div className="eyebrow">Track record</div>
-        <h2 className={total >= 0 ? "up" : "down"}>{closed.length ? m$(total) : "$0.00"} <small>terealisasi</small></h2>
+        <h2 className={total >= 0 ? "up" : "down"}>{closed.length ? m$(total) : money(0)} <small>terealisasi</small></h2>
         <div className="s-grid">
           <div><small>Trade selesai</small><b>{closed.length}</b></div>
           <div><small>Win rate</small><b>{closed.length ? `${Math.round((wins.length / closed.length) * 100)}%` : "–"}</b></div>
@@ -93,23 +94,23 @@ export default function PortfolioView({ user, onLogin, onOpen }) {
             <div className="pos" key={t.id}>
               <div className="pos-h">
                 <button className="linkb" onClick={() => onOpen(t.symbol)}><b>{t.symbol}</b></button>
-                <span className="muted">{day(t.openedAt)} · ${t.usd.toFixed(2)} @ ${fmt(t.entryPrice, 4)}</span>
+                <span className="muted">{day(t.openedAt)} · {money(U(t, t.usd))} @ {px(t.cur, t.entryPrice)}</span>
                 <b className={u == null ? "" : u >= 0 ? "up" : "down"}>{u == null ? "…" : m$(u)}</b>
               </div>
               <div className="pos-m">
-                <span>Sekarang {p != null ? `$${fmt(p, 4)}` : "…"}</span>
-                {t.sl && <span className="down">SL ${fmt(t.sl, 4)}</span>}
-                {t.tp && <span className="up">TP ${fmt(t.tp, 4)}</span>}
+                <span>Sekarang {p != null ? px(t.cur, p) : "…"}</span>
+                {t.sl && <span className="down">SL {px(t.cur, t.sl)}</span>}
+                {t.tp && <span className="up">TP {px(t.cur, t.tp)}</span>}
               </div>
               {hitTp && <p className="s-note up">Harga sudah mencapai target. Pertimbangkan jual.</p>}
               {hitSl && <p className="s-warn">Harga sudah menyentuh batas rugi. Pertimbangkan jual.</p>}
               {t.note && <p className="s-note">{t.note}</p>}
               {closing?.id === t.id ? (
                 <div className="closebox">
-                  <label className="enter small"><span>Harga jual ($/lembar)</span>
+                  <label className="enter small"><span>Harga jual ({pxSym(t.cur)}/lembar)</span>
                     <input type="number" inputMode="decimal" step="any" value={closing.price} onChange={(e) => setClosing({ id: t.id, price: +e.target.value || "" })} />
                   </label>
-                  {closing.price > 0 && (() => { const pnl = t.shares * (closing.price - t.entryPrice) - t.feeIn - side(t.shares * closing.price); return <p className="s-line">Hasil bersih ≈ <b className={pnl >= 0 ? "up" : "down"}>{m$(pnl)}</b> ({pct((pnl / t.usd) * 100, 1)})</p>; })()}
+                  {closing.price > 0 && (() => { const pnl = t.shares * (closing.price - t.entryPrice) - t.feeIn - sideOf(t, t.shares * closing.price); return <p className="s-line">Hasil bersih ≈ <b className={pnl >= 0 ? "up" : "down"}>{m$(U(t, pnl))}</b> ({pct((pnl / t.usd) * 100, 1)})</p>; })()}
                   <div className="row-btn">
                     <button className="btn" disabled={busy || !(closing.price > 0)} onClick={() => act({ op: "close", id: t.id, exitPrice: closing.price })}>Catat jual</button>
                     <button className="btn ghost" onClick={() => setClosing(null)}>Batal</button>
@@ -134,11 +135,11 @@ export default function PortfolioView({ user, onLogin, onOpen }) {
             <div className="pos-h">
               <button className="linkb" onClick={() => onOpen(t.symbol)}><b>{t.symbol}</b></button>
               <span className="muted">{day(t.openedAt)} → {day(t.closedAt)}</span>
-              <b className={t.pnl >= 0 ? "up" : "down"}>{m$(t.pnl)}</b>
+              <b className={t.pnl >= 0 ? "up" : "down"}>{m$(U(t, t.pnl))}</b>
             </div>
             <div className="pos-m">
-              <span>${t.usd.toFixed(2)} · ${fmt(t.entryPrice, 4)} → ${fmt(t.exitPrice, 4)}</span>
-              <span>{pct(t.pnlPct, 1)} · fee ${(t.feeIn + t.feeOut).toFixed(2)}</span>
+              <span>{money(U(t, t.usd))} · {px(t.cur, t.entryPrice)} → {px(t.cur, t.exitPrice)}</span>
+              <span>{pct(t.pnlPct, 1)} · fee {money(U(t, t.feeIn + t.feeOut))}</span>
             </div>
             {t.pred?.win != null && <p className="s-note">Prediksi saat masuk: menang {t.pred.win.toFixed(0)}%{t.pred.mc != null ? ` · Monte Carlo ${t.pred.mc.toFixed(0)}%` : ""}</p>}
           </div>

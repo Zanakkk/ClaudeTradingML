@@ -1,25 +1,31 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getJSON, errText, fmt, pct } from "../lib/api.js";
 import { Icon, Notice } from "./ui.jsx";
+import { money, toDisp, fromDisp, px, sym, rate, chipsEnter, chipsProfit, sameAmt, cur as curNow } from "../lib/money.js";
+
+// Saham Indonesia (IDX) populer & likuid — harga dalam rupiah
+const IDX = ["BBCA.JK","BBRI.JK","BMRI.JK","BBNI.JK","TLKM.JK","ASII.JK","UNVR.JK","ICBP.JK","INDF.JK","KLBF.JK","ADRO.JK","PTBA.JK","ANTM.JK","MDKA.JK","GOTO.JK","BUKA.JK","ARTO.JK","BRIS.JK","CPIN.JK","SMGR.JK","INCO.JK","MEDC.JK","AKRA.JK","EXCL.JK","ISAT.JK","TOWR.JK","ACES.JK","MAPI.JK","PGAS.JK","ITMG.JK"];
 
 const FILTERS = [["all", "Semua"], ["strong", "Lolos standar kuat"], ["KANDIDAT", "Kandidat"], ["PANTAU", "Pantau"], ["setup", "Sinyal aktif"]];
-const DOLLARS = [[0, "Semua"], [1, "≥ $1"], [2, "≥ $2"], [3, "≥ $3"], [5, "≥ $5"]];
 const PROFITS = [[0, "Semua"], [2, "≥ 2%"], [3, "≥ 3%"], [5, "≥ 5%"]];
-const SORTS = [["score", "Skor"], ["win", "Win %"], ["vol", "Volatil"], ["net", "Untung %"], ["usd", "Untung $"]];
+const SORTS = [["score", "Skor"], ["win", "Win %"], ["vol", "Volatil"], ["net", "Untung %"], ["usd", "Untung nominal"]];
 const VERDICT = { KANDIDAT: "Kandidat", PANTAU: "Pantau", HINDARI: "Hindari" };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const money = (n) => (n >= 1e6 ? `$${(n / 1e6).toFixed(1)}jt` : `$${Math.round(n / 1e3)}rb`);
+const volFmt = (n) => { if (curNow() === "IDR") { const v = n * rate(); return v >= 1e9 ? `Rp ${(v / 1e9).toFixed(1)} M` : `Rp ${Math.round(v / 1e6)} jt`; } return n >= 1e6 ? `$${(n / 1e6).toFixed(1)}jt` : `$${Math.round(n / 1e3)}rb`; };
 
-const usd2 = (n) => `$${Math.abs(n).toFixed(2)}`;
+const usd2 = (n) => money(n);
+const priceUsd = (r) => (r.cur === "IDR" ? r.price / rate() : r.price);
 // Rencana beli: ukuran posisi dibatasi oleh modal/jumlah posisi DAN rugi maksimal yang kamu izinkan.
-function plan(r, cfg, fee) {
+function plan(r, cfg, fee0) {
+  const idr = r.cur === "IDR";
+  const fee = idr ? { pct: r.feePct ?? 0.2, min: 0, fixed: 0 } : fee0;
   const side = (pos) => Math.max(fee.min, (pos * fee.pct) / 100) + fee.fixed;
   const slF = r.slPct / 100, tpF = r.tpPct / 100;
   const pos = Math.max(1, cfg.enter || 0);
   const f2 = side(pos) * 2;
   const maxLoss = pos * slF + f2;
   return {
-    pos, shares: pos / r.price, sl: r.price * (1 - slF), tp: r.price * (1 + tpF),
+    pos, shares: (idr ? pos * rate() : pos) / r.price, sl: r.price * (1 - slF), tp: r.price * (1 + tpF),
     maxLoss, net: pos * tpF - f2, fee: f2, be: (f2 / pos) * 100, over: maxLoss > cfg.risk,
     mcMed: r.mc ? (pos * r.mc.median) / 100 : null, mcBad: r.mc ? (pos * r.mc.p5) / 100 : null,
   };
@@ -33,7 +39,7 @@ function Card({ r, rank, onOpen, onRecord, cfg, fee }) {
       <div className="s-head" role="button" tabIndex={0} onClick={() => onOpen(r.symbol)} onKeyDown={(e) => e.key === "Enter" && onOpen(r.symbol)}>
         <span className="s-rank">{rank}</span>
         <div className="s-name"><b>{r.symbol}</b><small>{r.name}</small></div>
-        <div className="s-price"><b>${fmt(r.price)}</b><small className={r.chg5d >= 0 ? "up" : "down"}>{pct(r.chg5d, 1)} · 5 hari</small></div>
+        <div className="s-price"><b>{px(r.cur, r.price)}</b><small className={r.chg5d >= 0 ? "up" : "down"}>{pct(r.chg5d, 1)} · 5 hari</small></div>
       </div>
       <div className="s-body">
         <div className="s-win">
@@ -53,18 +59,18 @@ function Card({ r, rank, onOpen, onRecord, cfg, fee }) {
       </div>
       {r.entry && (
         <div className="s-entry">
-          <span>Masuk ${fmt(r.entry.price)}</span><span className="down">SL ${fmt(r.entry.sl)}</span><span className="up">TP ${fmt(r.entry.tp)}</span>
+          <span>Masuk {px(r.cur, r.entry.price)}</span><span className="down">SL {px(r.cur, r.entry.sl)}</span><span className="up">TP {px(r.cur, r.entry.tp)}</span>
         </div>
       )}
       {pl && (
         <div className="s-plan">
           <div className="eyebrow">Versi simpel</div>
-          <p className="s-line"><b>1. Beli</b> senilai <b>{usd2(pl.pos)}</b> <em>({pl.shares.toFixed(2)} lembar, harga ${fmt(r.price)})</em></p>
-          <p className="s-line"><b>2. Jual untung</b> kalau harga sampai <b className="up">${fmt(pl.tp)}</b> → kamu dapat <b className="up">+{usd2(pl.net)}</b> <em>(sudah dipotong fee){r.holdH ? ` · biasanya ±${r.holdH} jam` : ""}</em></p>
-          <p className="s-line"><b>3. Jual rugi</b> kalau harga turun ke <b className="down">${fmt(pl.sl)}</b> → kamu rugi <b className="down">−{usd2(pl.maxLoss)}</b></p>
+          <p className="s-line"><b>1. Beli</b> senilai <b>{usd2(pl.pos)}</b> <em>({r.cur === "IDR" ? `${Math.floor(pl.shares / 100)} lot · ${Math.round(pl.shares)} lembar` : `${pl.shares.toFixed(2)} lembar`}, harga {px(r.cur, r.price)})</em></p>
+          <p className="s-line"><b>2. Jual untung</b> kalau harga sampai <b className="up">{px(r.cur, pl.tp)}</b> → kamu dapat <b className="up">+{usd2(pl.net)}</b> <em>(sudah dipotong fee){r.holdH ? ` · biasanya ±${r.holdH} jam` : ""}</em></p>
+          <p className="s-line"><b>3. Jual rugi</b> kalau harga turun ke <b className="down">{px(r.cur, pl.sl)}</b> → kamu rugi <b className="down">−{usd2(pl.maxLoss)}</b></p>
           {pl.mcMed != null && (
             <div className="s-odds">
-              <div className="eyebrow">Monte Carlo dalam dolar · 10 trade, masing-masing {usd2(pl.pos)}</div>
+              <div className="eyebrow">Monte Carlo dalam nominal · 10 trade, masing-masing {usd2(pl.pos)}</div>
               <div className="odds-row mcd"><span>Hasil tengah</span><span className={pl.mcMed >= 0 ? "up" : "down"}>{pl.mcMed >= 0 ? "+" : "−"}{usd2(pl.mcMed)}</span><span>peluang untung {r.mc.pProfit}%</span></div>
               <div className="odds-row mcd"><span>Skenario buruk</span><span className="down">{pl.mcBad >= 0 ? "+" : "−"}{usd2(pl.mcBad)}</span><span>(5% terburuk)</span></div>
               {r.holdH && <p className="s-note">Satu trade rata-rata berlangsung ±{r.holdH} jam, jadi 10 trade ≈ {Math.round((r.holdH * 10) / 6.5)} hari bursa.</p>}
@@ -88,7 +94,7 @@ function Card({ r, rank, onOpen, onRecord, cfg, fee }) {
         <div><small>Untung bersih target</small><b className="up">+{fmt(r.netTpPct, 1)}%</b></div>
         <div><small>Target / fee</small><b>{fmt(r.tpPct, 1)}% / {fmt(r.rtFeePct, 1)}%</b></div>
         <div><small>Gerak 1 jam</small><b>{fmt(r.atrPct, 1)}%</b></div>
-        <div><small>Volume/hari</small><b>{money(r.dollarVol)}</b></div>
+        <div><small>Volume/hari</small><b>{volFmt(r.dollarVol)}</b></div>
       </div>
       <p className="s-chk">
         <b className={r.strong ? "up" : ""}>{r.strong ? "Lolos standar kuat" : `Standar kuat: ${r.checks.filter((c) => c.ok).length}/${r.checks.length}`}</b>
@@ -96,7 +102,7 @@ function Card({ r, rank, onOpen, onRecord, cfg, fee }) {
       </p>
       <p className="s-why">{r.reasons.join(" · ")}</p>
       {pl && onRecord && (
-        <button className="btn wide rec" onClick={() => onRecord({ symbol: r.symbol, name: r.name, price: r.entry?.price ?? r.price, usd: cfg.enter, sl: r.entry?.sl ?? pl.sl, tp: r.entry?.tp ?? pl.tp, pred: { win: Math.round(r.bt.winShr * 100), mc: r.mc?.pProfit ?? null, score: r.score, strong: !!r.strong } })}>Catat masuk ${cfg.enter}</button>
+        <button className="btn wide rec" onClick={() => onRecord({ symbol: r.symbol, name: r.name, price: r.entry?.price ?? r.price, cur: r.cur || "USD", feePct: r.cur === "IDR" ? r.feePct : fee?.pct, usd: cfg.enter, sl: r.entry?.sl ?? pl.sl, tp: r.entry?.tp ?? pl.tp, pred: { win: Math.round(r.bt.winShr * 100), mc: r.mc?.pProfit ?? null, score: r.score, strong: !!r.strong } })}>Catat masuk {money(cfg.enter, 0)}</button>
       )}
     </div>
   );
@@ -130,7 +136,7 @@ export default function ScreenerView({ onOpen, onRecord, profile, feePct }) {
   const fee = useMemo(() => (data?.fee ? { ...data.fee, pct: feePct ?? data.fee.pct } : null), [data, feePct]);
   const list = useMemo(() => {
     if (!data) return [];
-    let r = data.results.filter((x) => !onlyCap || x.price <= (data.maxPriceUsd || 10));
+    let r = data.results.filter((x) => !onlyCap || priceUsd(x) <= (data.maxPriceUsd || 10));
     const usdOf = (x) => (fee ? plan(x, cfg, fee)?.net ?? -1 : -1);
     if (minProfit) r = r.filter((x) => x.netTpPct >= minProfit);
     if (minUsd) r = r.filter((x) => usdOf(x) >= minUsd);
@@ -150,7 +156,7 @@ export default function ScreenerView({ onOpen, onRecord, profile, feePct }) {
   if (error && !data) return <Notice title="Screener belum bisa dimuat" text={errText(error, "daftar saham")} action="Coba lagi" onAction={() => run(false)} />;
   if (!data) return <div className="stack"><div className="skeleton tall" /><p className="disc">Menganalisis puluhan saham… biasanya 10–20 detik.</p></div>;
 
-  const top = data.results.filter((x) => x.strong && (!onlyCap || x.price <= (data.maxPriceUsd || 10))).slice(0, 3);
+  const top = data.results.filter((x) => x.strong && (!onlyCap || priceUsd(x) <= (data.maxPriceUsd || 10))).slice(0, 3);
   const age = Math.max(0, Math.round((Date.now() - data.generatedAt) / 60000));
 
   return (
@@ -178,30 +184,30 @@ export default function ScreenerView({ onOpen, onRecord, profile, feePct }) {
 
       <section className="card">
         <label className="enter">
-          <span>Mau masuk berapa ($) per saham?</span>
-          <input type="number" inputMode="decimal" min="1" value={cfg.enter || ""} onChange={(e) => setC("enter", +e.target.value)} />
+          <span>Mau masuk berapa ({sym()}) per saham?</span>
+          <input type="number" inputMode="decimal" min="1" value={cfg.enter ? toDisp(cfg.enter) : ""} onChange={(e) => setC("enter", fromDisp(+e.target.value))} />
         </label>
         <div className="chips" style={{ margin: "8px 0 10px" }}>
-          {[10, 25, 50, 100, 200].map((v) => <button key={v} className={`chip ${cfg.enter === v ? "active" : ""}`} onClick={() => setC("enter", v)}>${v}</button>)}
+          {chipsEnter().map((c) => <button key={c.label} className={`chip ${sameAmt(cfg.enter, c.usd) ? "active" : ""}`} onClick={() => setC("enter", c.usd)}>{c.label}</button>)}
         </div>
         <label className="enter small">
-          <span>Batas rugi yang masih kamu terima per trade ($)</span>
-          <input type="number" inputMode="decimal" min="0.5" step="0.5" value={cfg.risk || ""} onChange={(e) => setC("risk", +e.target.value)} />
+          <span>Batas rugi yang masih kamu terima per trade ({sym()})</span>
+          <input type="number" inputMode="decimal" min="0" value={cfg.risk ? toDisp(cfg.risk) : ""} onChange={(e) => setC("risk", fromDisp(+e.target.value))} />
         </label>
-        <p className="disc" style={{ margin: "8px 0 0" }}>Semua kartu di bawah dihitung ulang dengan nominal ini: untung, rugi, fee, dan hasil Monte Carlo dalam dolar. Filter “Untung target ($)” juga memakainya.</p>
+        <p className="disc" style={{ margin: "8px 0 0" }}>Semua kartu di bawah dihitung ulang dengan nominal ini: untung, rugi, fee, dan hasil Monte Carlo dalam {curNow() === "IDR" ? "rupiah" : "dolar"}. Filter “Untung target” juga memakainya.</p>
       </section>
 
       <div className="chips">
         {FILTERS.map(([k, l]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{l}</button>)}
-        <button className={`chip ${onlyCap ? "active" : ""}`} onClick={() => setOnlyCap(!onlyCap)}>≤ ${data.maxPriceUsd || 10}</button>
+        <button className={`chip ${onlyCap ? "active" : ""}`} onClick={() => setOnlyCap(!onlyCap)}>≤ {money(data.maxPriceUsd || 10, 0)}</button>
       </div>
       <div className="chips">
         <span className="chip-label">Untung bersih target</span>
         {PROFITS.map(([k, l]) => <button key={k} className={`chip ${minProfit === k ? "active" : ""}`} onClick={() => setMinProfit(k)}>{l}</button>)}
       </div>
       <div className="chips">
-        <span className="chip-label">Untung target ($)</span>
-        {DOLLARS.map(([k, l]) => <button key={k} className={`chip ${minUsd === k ? "active" : ""}`} onClick={() => setMinUsd(k)}>{l}</button>)}
+        <span className="chip-label">Untung target ({sym()})</span>
+        {chipsProfit().map(([k, l]) => <button key={l} className={`chip ${Math.abs(minUsd - k) < 1e-9 ? "active" : ""}`} onClick={() => setMinUsd(k)}>{l}</button>)}
       </div>
       <div className="seg">
         {SORTS.map(([k, l]) => <button key={k} className={sort === k ? "active" : ""} onClick={() => setSort(k)}>{l}</button>)}
@@ -229,7 +235,11 @@ export default function ScreenerView({ onOpen, onRecord, profile, feePct }) {
             <div className="row-btn"><button className="btn" onClick={saveList}>Simpan &amp; analisis</button><button className="btn ghost" onClick={() => setEdit(false)}>Batal</button></div>
           </>
         ) : (
-          <button className="btn ghost" onClick={() => { setDraft((custom || []).join(", ")); setEdit(true); }}>{custom ? `Ubah daftar (${custom.length} ticker)` : "Pakai daftar sendiri"}</button>
+          <div className="row-btn">
+            <button className="btn ghost" onClick={() => { setDraft((custom || []).join(", ")); setEdit(true); }}>{custom ? `Ubah daftar (${custom.length} ticker)` : "Pakai daftar sendiri"}</button>
+            <button className="btn ghost" onClick={() => { localStorage.setItem("screenList", JSON.stringify(IDX)); setCustom(IDX); }}>Saham Indonesia</button>
+            {custom && <button className="btn ghost" onClick={() => { localStorage.removeItem("screenList"); setCustom(null); }}>Kembali ke Gotrade</button>}
+          </div>
         )}
       </section>
 

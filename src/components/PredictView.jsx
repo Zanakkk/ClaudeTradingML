@@ -1,3 +1,4 @@
+import { money, moneyS, toDisp, fromDisp, px, sym, rate, chipsEnter, sameAmt } from "../lib/money.js";
 import { useEffect, useState, useCallback } from "react";
 import { getJSON, fmt, pct, errText } from "../lib/api.js";
 import { Notice } from "./ui.jsx";
@@ -67,7 +68,7 @@ function Fan({ d }) {
   );
 }
 
-const usd = (n) => `${n < 0 ? "−" : "+"}$${Math.abs(n).toFixed(2)}`;
+const usd = (n) => moneyS(n);
 function cdf(q, thr) { // peluang hasil akhir <= thr, dari 21 kuantil (tiap 5%)
   if (thr <= q[0]) return 0;
   if (thr >= q[20]) return 1;
@@ -79,7 +80,9 @@ function McBlock({ d, symbol, onRecord }) {
   const [amt, setAmt] = useState(() => +localStorage.getItem("enter") || 100);
   const set = (v) => { setAmt(v); if (v > 0) localStorage.setItem("enter", String(v)); };
   const m = d.mc, f = d.fee;
-  const pos = Math.max(1, amt || 0);
+  const pos = Math.max(0.01, amt || 0);
+  const nat = d.cur === "IDR";
+  const shares = (nat ? pos * rate() : pos) / d.price;
   const side = Math.max(f.min, (pos * f.pct) / 100) + f.fixed;
   const rt = side * 2;
   const val = (retPct) => (pos * retPct) / 100 - rt;
@@ -90,13 +93,13 @@ function McBlock({ d, symbol, onRecord }) {
     <section className="card">
       <h3>Monte Carlo · {m.iters.toLocaleString("id-ID")} jalur harga</h3>
       <label className="enter">
-        <span>Mau masuk berapa ($)?</span>
-        <input type="number" inputMode="decimal" min="1" value={amt || ""} onChange={(e) => set(+e.target.value)} />
+        <span>Mau masuk berapa ({sym()})?</span>
+        <input type="number" inputMode="decimal" min="1" value={amt ? toDisp(amt) : ""} onChange={(e) => set(fromDisp(+e.target.value))} />
       </label>
       <div className="chips" style={{ margin: "8px 0 12px" }}>
-        {[25, 50, 100, 200, 500].map((v) => <button key={v} className={`chip ${amt === v ? "active" : ""}`} onClick={() => set(v)}>${v}</button>)}
+        {chipsEnter().map((c) => <button key={c.label} className={`chip ${sameAmt(amt, c.usd) ? "active" : ""}`} onClick={() => set(c.usd)}>{c.label}</button>)}
       </div>
-      <p className="s-line"><b>Beli</b> ${pos.toFixed(2)} <em>({(pos / d.price).toFixed(2)} lembar @ ${fmt(d.price)}) · fee bolak-balik ≈ ${rt.toFixed(2)}</em></p>
+      <p className="s-line"><b>Beli</b> {money(pos)} <em>({nat ? `${Math.floor(shares / 100)} lot · ${Math.round(shares)} lembar` : `${shares.toFixed(2)} lembar`} @ {px(d.cur, d.price)}) · fee bolak-balik ≈ {money(rt)}</em></p>
 
       <div className="eyebrow" style={{ marginTop: 12 }}>Kalau ditahan {d.horizonLabel}</div>
       <div className="odds-row mcd"><span>Terbaik 5%</span><span className="up">{usd(val(m.q[19]))}</span><span /></div>
@@ -109,7 +112,7 @@ function McBlock({ d, symbol, onRecord }) {
       <p className="s-line"><b className="down">Kena batas rugi</b> (−{m.slPct.toFixed(1)}%) {usd(-loss)} · peluang <b>{m.pSL.toFixed(0)}%</b></p>
       <p className="s-line"><b>Belum keduanya</b> dalam {d.horizonLabel} · peluang <b>{m.pNone.toFixed(0)}%</b></p>
       {onRecord && (
-        <button className="btn wide rec" onClick={() => onRecord({ symbol, name: symbol, price: d.price, usd: pos, sl: d.price * (1 - m.slPct / 100), tp: d.price * (1 + m.tpPct / 100), pred: { win: Math.round(m.pTP), mc: Math.round(pWin), score: d.score, strong: false } })}>Catat masuk ${pos.toFixed(0)} di {symbol}</button>
+        <button className="btn wide rec" onClick={() => onRecord({ symbol, name: symbol, price: d.price, cur: d.cur || "USD", feePct: f.pct, usd: pos, sl: d.price * (1 - m.slPct / 100), tp: d.price * (1 + m.tpPct / 100), pred: { win: Math.round(m.pTP), mc: Math.round(pWin), score: d.score, strong: false } })}>Catat masuk {money(pos, 0)} di {symbol}</button>
       )}
       <p className="s-note">Kalau diulang berkali-kali, rata-rata dari yang kena target/batas ≈ <b className={ev >= 0 ? "up" : "down"}>{usd(ev)}</b> per trade. Simulasi ini tidak menebak arah, jadi angka positif berarti target lebih besar dari fee dan risikonya, bukan karena harga pasti naik.</p>
     </section>

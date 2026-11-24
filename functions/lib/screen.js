@@ -1,3 +1,4 @@
+import { isIdx, feeSettings } from "./market.js";
 import { ema, atr, stochastic } from "./indicators.js";
 
 const last = (a) => a[a.length - 1];
@@ -93,7 +94,10 @@ function monteCarlo(tr, k = 10, iters = 1000) {
   };
 }
 
-export function analyze(symbol, h1, d1, s) {
+export function analyze(symbol, h1, d1, s0) {
+  const idx = isIdx(symbol);
+  const s = feeSettings(symbol, s0);
+  const fx = idx ? s0.idrPerUsd || 16000 : 1;
   if (h1.close.length < 150 || d1.close.length < 30) return { symbol, status: "no_data" };
 
   const n = h1.close.length;
@@ -109,7 +113,7 @@ export function analyze(symbol, h1, d1, s) {
     dv += d1.close[i] * d1.volume[i];
     rng += ((d1.high[i] - d1.low[i]) / d1.close[i]) * 100;
   }
-  const dollarVol = dv / w;
+  const dollarVol = dv / w / fx;
   const dailyRangePct = rng / w;
   let worstDay = 0;
   for (let i = Math.max(1, dn - 60); i < dn; i++) worstDay = Math.min(worstDay, ((d1.close[i] - d1.close[i - 1]) / d1.close[i - 1]) * 100);
@@ -187,7 +191,7 @@ export function analyze(symbol, h1, d1, s) {
   if (avgNet <= 0 && nT >= 8) reasons.push("rata-rata hasil bersih negatif");
 
   return {
-    symbol, status: "ok", price, chg5d, atrPct, dailyRangePct, dollarVol, worstDay,
+    symbol, status: "ok", cur: idx ? "IDR" : "USD", feePct: s.feePctPerSide, price, chg5d, atrPct, dailyRangePct, dollarVol, worstDay,
     hourlyUp, dailyUp, setupNow,
     rtFeePct, tpPct, slPct,
     bt: { trades: nT, winRate, winShr, avgNet, profitFactor },

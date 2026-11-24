@@ -35,7 +35,8 @@ export const errText = (e, what = "ticker ini") =>
 
 export const fmt = (n, d = 2) => (n == null || !isFinite(n) ? "–" : Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
 export const pct = (n, d = 2) => (n == null || !isFinite(n) ? "–" : `${n >= 0 ? "+" : ""}${n.toFixed(d)}%`);
-export const usd = (n) => (n == null ? "–" : `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`);
+import { money } from "./money.js";
+export const usd = (n) => (n == null ? "–" : `${n < 0 ? "−" : ""}${money(n)}`);
 
 export const GROUPS = {
   "Indeks & ETF": ["SPY", "QQQ", "DIA", "IWM", "VTI", "XLK", "XLF", "XLE"],

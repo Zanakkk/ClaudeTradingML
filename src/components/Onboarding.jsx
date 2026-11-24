@@ -1,14 +1,15 @@
 import { useState } from "react";
+import { toDisp, fromDisp, sym, setMoney, rate, money } from "../lib/money.js";
 
 const SLIDES = [
   { k: "a", title: "Cari peluang, bukan menebak", body: "TradingML memindai puluhan saham Gotrade, mengujinya pada riwayat 2 tahun, lalu menghitung peluang untung dan rugi dengan simulasi Monte Carlo 1.000 jalur.", art: "◎" },
-  { k: "b", title: "Fee adalah lawan utamamu", body: "Di modal $100, sekali beli lalu jual memakan sekitar $0,64. Trade 15 menit yang untungnya $1–2 habis dimakan fee. Karena itu aplikasi ini mengutamakan target yang jauh lebih besar dari fee, bukan trade sebanyak-banyaknya.", art: "$" },
+  { k: "b", title: "Fee adalah lawan utamamu", body: "Di modal $100 (≈ Rp 1,6 juta), sekali beli lalu jual memakan sekitar $0,64 (≈ Rp 10 ribu). Trade 15 menit yang untungnya $1–2 habis dimakan fee. Karena itu aplikasi ini mengutamakan target yang jauh lebih besar dari fee, bukan trade sebanyak-banyaknya.", art: "$" },
   { k: "c", title: "Kamu yang memegang kendali", body: "Tidak ada jaminan untung. Selalu pakai batas rugi, jangan taruh seluruh modal di satu saham, dan berhenti kalau rugi mingguan sudah sampai batasmu. Aplikasi ini alat bantu analisa, bukan saran investasi.", art: "◆" },
 ];
 
 export default function Onboarding({ profile, onSave, onFinish }) {
   const [i, setI] = useState(0);
-  const [p, setP] = useState({ capital: profile.capital, feeTier: profile.feeTier, risk: profile.risk, name: profile.name || "" });
+  const [p, setP] = useState({ capital: profile.capital, feeTier: profile.feeTier, risk: profile.risk, name: profile.name || "", currency: profile.currency || "USD" });
   const last = i === SLIDES.length;
   const s = SLIDES[i];
   const finish = async (wantAccount) => { await onSave({ ...profile, ...p, onboarded: true }); onFinish(wantAccount); };
@@ -28,7 +29,14 @@ export default function Onboarding({ profile, onSave, onFinish }) {
             <h1>Atur dasarmu</h1>
             <p>Dipakai untuk menghitung ukuran posisi dan fee. Bisa diubah kapan saja di Akun.</p>
             <div className="aform">
-              <label>Modal ($)<input type="number" inputMode="decimal" min="10" value={p.capital || ""} onChange={(e) => setP({ ...p, capital: +e.target.value })} /></label>
+              <div className="fieldset">
+                <span>Mata uang</span>
+                <div className="seg">
+                  <button type="button" className={p.currency === "IDR" ? "active" : ""} onClick={() => { setMoney("IDR", rate()); setP({ ...p, currency: "IDR" }); }}>Rupiah (Rp)</button>
+                  <button type="button" className={p.currency !== "IDR" ? "active" : ""} onClick={() => { setMoney("USD", rate()); setP({ ...p, currency: "USD" }); }}>Dollar ($)</button>
+                </div>
+              </div>
+              <label>Modal ({sym()})<input type="number" inputMode="decimal" min="1" value={p.capital ? toDisp(p.capital) : ""} onChange={(e) => setP({ ...p, capital: fromDisp(+e.target.value) })} /></label>
               <div className="fieldset">
                 <span>Tarif Gotrade-mu</span>
                 <div className="seg">
@@ -36,7 +44,7 @@ export default function Onboarding({ profile, onSave, onFinish }) {
                   <button type="button" className={p.feeTier === "prestige" ? "active" : ""} onClick={() => setP({ ...p, feeTier: "prestige" })}>Prestige 0,2%</button>
                 </div>
               </div>
-              <label>Batas rugi yang kamu terima per trade ($)<input type="number" inputMode="decimal" min="0.5" step="0.5" value={p.risk || ""} onChange={(e) => setP({ ...p, risk: +e.target.value })} /></label>
+              <label>Batas rugi yang kamu terima per trade ({sym()})<input type="number" inputMode="decimal" min="0" value={p.risk ? toDisp(p.risk) : ""} onChange={(e) => setP({ ...p, risk: fromDisp(+e.target.value) })} /></label>
             </div>
           </div>
         )}
