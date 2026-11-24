@@ -62,7 +62,7 @@ export default function PortfolioView({ user, onLogin, onOpen }) {
   }
 
   return (
-    <div className="stack">
+    <div className="stack cols">
       <section className="card hero-s">
         <div className="eyebrow">Track record</div>
         <h2 className={total >= 0 ? "up" : "down"}>{closed.length ? m$(total) : money(0)} <small>terealisasi</small></h2>

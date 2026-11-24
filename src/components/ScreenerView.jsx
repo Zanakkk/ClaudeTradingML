@@ -213,7 +213,7 @@ export default function ScreenerView({ onOpen, onRecord, profile, feePct }) {
         {SORTS.map(([k, l]) => <button key={k} className={sort === k ? "active" : ""} onClick={() => setSort(k)}>{l}</button>)}
       </div>
 
-      {list.length ? list.map((r, i) => <Card key={r.symbol} r={r} rank={i + 1} onOpen={onOpen} onRecord={onRecord} cfg={cfg} fee={fee} />) : (
+      {list.length ? <div className="cards">{list.map((r, i) => <Card key={r.symbol} r={r} rank={i + 1} onOpen={onOpen} onRecord={onRecord} cfg={cfg} fee={fee} />)}</div> : (
         <div className="empty"><b>Tidak ada saham untuk filter ini</b><p>Coba filter “Semua” atau matikan batas harga.</p></div>
       )}
 

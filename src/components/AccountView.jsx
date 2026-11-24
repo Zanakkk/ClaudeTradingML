@@ -39,7 +39,7 @@ export default function AccountView({ user, profile, saveProfile, onLogin, onRep
   const initials = (p.name || user?.email || "?").trim().slice(0, 1).toUpperCase();
 
   return (
-    <div className="stack">
+    <div className="stack cols">
       <section className="card prof">
         <div className="avatar lg">{user ? initials : "?"}</div>
         <div>
