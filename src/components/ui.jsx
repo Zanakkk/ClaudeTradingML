@@ -10,6 +10,8 @@ export const Icon = ({ name }) => {
     watch: <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9L3.5 9.7l5.9-.8L12 3.5z" />,
     screener: (<><path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" /></>),
     refresh: <path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />,
+    journal: (<><path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z" /><path d="M6 3v18M10 8h5M10 12h5" /></>),
+    user: (<><circle cx="12" cy="8" r="3.5" /><path d="M5 20c1-4 4-5.5 7-5.5s6 1.5 7 5.5" /></>),
     bell: <path d="M6 9a6 6 0 1 1 12 0c0 6 2 7 2 7H4s2-1 2-7zM10 20a2 2 0 0 0 4 0" />,
   };
   return <svg className="ico" viewBox="0 0 24 24" width="22" height="22" {...p}>{paths[name]}</svg>;

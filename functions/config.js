@@ -5,6 +5,7 @@ export const DEFAULTS = {
   capitalUsd: 100,        // modal
   riskPct: 1,             // risiko maksimal per trade (% modal)
   feePctPerSide: 0.3,     // Gotrade reguler 0.3%, Prestige 0.2% (cek di app) — berlaku beli DAN jual
+  feePctPrestige: 0.2,    // tarif Prestige
   minFeeUsd: 0.1,         // minimum fee per transaksi
   fixedFeeUsd: 0.02,      // biaya tetap kecil per transaksi (JFX, dll)
   slAtr: 1,               // stop loss = 1x ATR

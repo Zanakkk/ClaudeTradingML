@@ -9,6 +9,8 @@ import { candles, search, quotes } from "./yahoo.js";
 import { predict } from "./lib/predict.js";
 import { runScreener } from "./screener.js";
 import { UNIVERSE } from "./universe.js";
+import { getAuth } from "firebase-admin/auth";
+import { journalOp } from "./journal.js";
 import { DEFAULTS } from "./config.js";
 
 initializeApp();
@@ -138,6 +140,52 @@ export const api = onRequest(
         const out = await runScreener(UNIVERSE, settings);
         await ref.set(out);
         return json(res, 200, { ...out, maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
+      }
+
+      if (["/api/journal", "/api/profile", "/api/account"].includes(req.path) && req.method === "POST") {
+        // semua endpoint akun butuh ID token Firebase milik pengguna yang sedang masuk
+        const m = /^Bearer (.+)$/.exec(req.get("authorization") || "");
+        let user = null;
+        try { user = m ? await getAuth().verifyIdToken(m[1]) : null; } catch { user = null; }
+        if (!user) return json(res, 401, { error: "auth" }, "no-store");
+        const uid = user.uid, body = req.body || {};
+        const settings = await getSettings();
+        const pref = db().doc(`profiles/${uid}`);
+
+        if (req.path === "/api/profile") {
+          if (body.op === "set") {
+            const p = body.profile || {};
+            const clean = {};
+            if (typeof p.name === "string") clean.name = p.name.slice(0, 40);
+            if (Number(p.capital) > 0 && Number(p.capital) <= 1e7) clean.capital = Number(p.capital);
+            if (["regular", "prestige"].includes(p.feeTier)) clean.feeTier = p.feeTier;
+            if (Number(p.risk) > 0 && Number(p.risk) <= 1e6) clean.risk = Number(p.risk);
+            if (typeof p.onboarded === "boolean") clean.onboarded = p.onboarded;
+            clean.updatedAt = Date.now();
+            await pref.set(clean, { merge: true });
+          }
+          const snap = await pref.get();
+          return json(res, 200, { profile: snap.exists ? snap.data() : null, email: user.email || null }, "no-store");
+        }
+
+        if (req.path === "/api/account") {
+          if (body.op === "delete") {
+            await Promise.all([pref.delete(), db().doc(`journals/${uid}`).delete()]);
+            await getAuth().deleteUser(uid);
+            return json(res, 200, { ok: true }, "no-store");
+          }
+          return json(res, 400, { error: "bad_input" }, "no-store");
+        }
+
+        // jurnal trade: tarif fee mengikuti pilihan akun (reguler / Prestige)
+        const prof = (await pref.get()).data() || {};
+        const fee = { pct: prof.feeTier === "prestige" ? settings.feePctPrestige : settings.feePctPerSide, min: settings.minFeeUsd, fixed: settings.fixedFeeUsd };
+        try {
+          return json(res, 200, await journalOp(db(), uid, body, fee), "no-store");
+        } catch (e) {
+          if (e.message === "bad_input" || e.message === "full") return json(res, 400, { error: e.message }, "no-store");
+          throw e;
+        }
       }
 
       return json(res, 404, { error: "not_found" });

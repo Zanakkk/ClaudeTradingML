@@ -25,12 +25,12 @@ function plan(r, cfg, fee) {
   };
 }
 
-function Card({ r, rank, onOpen, cfg, fee }) {
+function Card({ r, rank, onOpen, onRecord, cfg, fee }) {
   const pl = fee ? plan(r, cfg, fee) : null;
   const wr = r.bt.trades ? Math.round(r.bt.winShr * 100) : null;
   return (
-    <button className={`scard ${r.verdict}`} onClick={() => onOpen(r.symbol)}>
-      <div className="s-head">
+    <div className={`scard ${r.verdict}`}>
+      <div className="s-head" role="button" tabIndex={0} onClick={() => onOpen(r.symbol)} onKeyDown={(e) => e.key === "Enter" && onOpen(r.symbol)}>
         <span className="s-rank">{rank}</span>
         <div className="s-name"><b>{r.symbol}</b><small>{r.name}</small></div>
         <div className="s-price"><b>${fmt(r.price)}</b><small className={r.chg5d >= 0 ? "up" : "down"}>{pct(r.chg5d, 1)} · 5 hari</small></div>
@@ -95,17 +95,20 @@ function Card({ r, rank, onOpen, cfg, fee }) {
         {!r.strong && <> · kurang: {r.checks.filter((c) => !c.ok).map((c) => c.label).join("; ")}</>}
       </p>
       <p className="s-why">{r.reasons.join(" · ")}</p>
-    </button>
+      {pl && onRecord && (
+        <button className="btn wide rec" onClick={() => onRecord({ symbol: r.symbol, name: r.name, price: r.entry?.price ?? r.price, usd: cfg.enter, sl: r.entry?.sl ?? pl.sl, tp: r.entry?.tp ?? pl.tp, pred: { win: Math.round(r.bt.winShr * 100), mc: r.mc?.pProfit ?? null, score: r.score, strong: !!r.strong } })}>Catat masuk ${cfg.enter}</button>
+      )}
+    </div>
   );
 }
 
-export default function ScreenerView({ onOpen }) {
+export default function ScreenerView({ onOpen, onRecord, profile, feePct }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("score");
-  const [cfg, setCfg] = useState(() => ({ enter: 100, risk: 5, ...load("calc", {}) }));
+  const [cfg, setCfg] = useState(() => ({ enter: profile?.capital || 100, risk: profile?.risk || 5, ...load("calc", {}) }));
   const [minProfit, setMinProfit] = useState(0);
   const [minUsd, setMinUsd] = useState(0);
   const [onlyCap, setOnlyCap] = useState(false);
@@ -124,18 +127,19 @@ export default function ScreenerView({ onOpen }) {
   }, [custom]);
   useEffect(() => { setData(null); run(false); }, [run]);
 
+  const fee = useMemo(() => (data?.fee ? { ...data.fee, pct: feePct ?? data.fee.pct } : null), [data, feePct]);
   const list = useMemo(() => {
     if (!data) return [];
     let r = data.results.filter((x) => !onlyCap || x.price <= (data.maxPriceUsd || 10));
-    const usdOf = (x) => (data.fee ? plan(x, cfg, data.fee)?.net ?? -1 : -1);
+    const usdOf = (x) => (fee ? plan(x, cfg, fee)?.net ?? -1 : -1);
     if (minProfit) r = r.filter((x) => x.netTpPct >= minProfit);
     if (minUsd) r = r.filter((x) => usdOf(x) >= minUsd);
     if (filter === "setup") r = r.filter((x) => x.setupNow);
     else if (filter === "strong") r = r.filter((x) => x.strong);
     else if (filter !== "all") r = r.filter((x) => x.verdict === filter);
-    const key = { score: (x) => x.score, win: (x) => x.bt.winShr, vol: (x) => x.atrPct, net: (x) => x.netTpPct, usd: (x) => (data.fee ? plan(x, cfg, data.fee)?.net ?? -1 : -1) }[sort];
+    const key = { score: (x) => x.score, win: (x) => x.bt.winShr, vol: (x) => x.atrPct, net: (x) => x.netTpPct, usd: (x) => (fee ? plan(x, cfg, fee)?.net ?? -1 : -1) }[sort];
     return [...r].sort((a, b) => key(b) - key(a));
-  }, [data, filter, sort, onlyCap, minProfit, minUsd, cfg]);
+  }, [data, fee, filter, sort, onlyCap, minProfit, minUsd, cfg]);
 
   const saveList = () => {
     const syms = [...new Set(draft.split(/[\s,;]+/).map((x) => x.trim().toUpperCase()).filter(Boolean))].slice(0, 120);
@@ -203,7 +207,7 @@ export default function ScreenerView({ onOpen }) {
         {SORTS.map(([k, l]) => <button key={k} className={sort === k ? "active" : ""} onClick={() => setSort(k)}>{l}</button>)}
       </div>
 
-      {list.length ? list.map((r, i) => <Card key={r.symbol} r={r} rank={i + 1} onOpen={onOpen} cfg={cfg} fee={data.fee} />) : (
+      {list.length ? list.map((r, i) => <Card key={r.symbol} r={r} rank={i + 1} onOpen={onOpen} onRecord={onRecord} cfg={cfg} fee={fee} />) : (
         <div className="empty"><b>Tidak ada saham untuk filter ini</b><p>Coba filter “Semua” atau matikan batas harga.</p></div>
       )}
 

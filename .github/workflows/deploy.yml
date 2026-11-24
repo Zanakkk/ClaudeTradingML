@@ -16,6 +16,14 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: functions
+      - name: Siapkan Firebase Auth + konfigurasi web app
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE }}
+        run: |
+          printf '%s' "$FIREBASE_KEY" > "$RUNNER_TEMP/sa.json"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet || true
+          node scripts/setup-firebase.mjs || true
+          gcloud auth revoke --all --quiet || true
       - run: npm run build
       - name: Deploy (Hosting + Functions)
         env:
