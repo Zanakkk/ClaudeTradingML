@@ -133,7 +133,7 @@ export const api = onRequest(
         }
         const ref = db().doc("screener/latest");
         const snap = await ref.get();
-        const fresh = snap.exists && Date.now() - snap.data().generatedAt < 20 * 60 * 1000;
+        const fresh = snap.exists && snap.data().v === 3 && Date.now() - snap.data().generatedAt < 20 * 60 * 1000;
         if (fresh && !req.query.refresh) return json(res, 200, { ...snap.data(), maxPriceUsd: settings.maxPriceUsd, fee: feeInfo(settings) }, "public, max-age=60");
         const out = await runScreener(UNIVERSE, settings);
         await ref.set(out);

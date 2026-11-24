@@ -43,6 +43,14 @@ function Card({ r, rank, onOpen, cfg, fee }) {
         <span className={`vbadge ${r.verdict}`}>{VERDICT[r.verdict]}</span>
       </div>
       <div className="s-bar"><i style={{ width: `${r.score}%` }} /></div>
+      <div className="mc-box">
+        <div className="eyebrow">Monte Carlo · simulasi 1.000×</div>
+        {r.mc ? (
+          <p>Dari 1.000 simulasi 10 trade berikutnya, <b className={r.mc.pProfit >= 70 ? "up" : "down"}>{r.mc.pProfit}%</b> berakhir untung. Hasil tengah {pct(r.mc.median, 1)}, skenario buruk (5% terburuk) {pct(r.mc.p5, 1)}.</p>
+        ) : (
+          <p className="s-note" style={{ margin: 0 }}>Belum bisa dihitung: {r.bt.trades < 8 ? `riwayat baru ${r.bt.trades} trade (minimal 8).` : "tekan Segarkan di atas untuk data terbaru."}</p>
+        )}
+      </div>
       {r.entry && (
         <div className="s-entry">
           <span>Masuk ${fmt(r.entry.price)}</span><span className="down">SL ${fmt(r.entry.sl)}</span><span className="up">TP ${fmt(r.entry.tp)}</span>
@@ -54,10 +62,7 @@ function Card({ r, rank, onOpen, cfg, fee }) {
           <p className="s-line"><b>1. Beli</b> senilai <b>{usd2(pl.pos)}</b> <em>({pl.shares.toFixed(2)} lembar, harga ${fmt(r.price)})</em></p>
           <p className="s-line"><b>2. Jual untung</b> kalau harga sampai <b className="up">${fmt(pl.tp)}</b> → kamu dapat <b className="up">+{usd2(pl.net)}</b> <em>(sudah dipotong fee)</em></p>
           <p className="s-line"><b>3. Jual rugi</b> kalau harga turun ke <b className="down">${fmt(pl.sl)}</b> → kamu rugi <b className="down">−{usd2(pl.maxLoss)}</b></p>
-          {r.mc && (
-        <p className="s-mc">Simulasi 1.000× (10 trade berikutnya): untung di <b className={r.mc.pProfit >= 70 ? "up" : "down"}>{r.mc.pProfit}%</b> simulasi · hasil tengah {pct(r.mc.median, 1)} · skenario buruk (5%) {pct(r.mc.p5, 1)}</p>
-      )}
-      {r.hit?.h1 && (
+          {r.hit?.h1 && (
             <div className="s-odds">
               <div className="eyebrow">Peluang dari riwayat saham ini</div>
               <div className="odds-row"><span>Dalam 1 jam</span><span className="up">kena untung {r.hit.h1.tp}%</span><span className="down">kena rugi {r.hit.h1.sl}%</span></div>

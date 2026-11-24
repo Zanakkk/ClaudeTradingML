@@ -220,3 +220,5 @@ nav button.active::before { content: ""; position: absolute; top: -1px; width: 2
 .chip-label { flex: none; align-self: center; color: var(--muted); font-size: 12px; margin-right: 2px; }
 .s-mc, .s-chk { font-size: 12.5px; line-height: 1.55; margin: 10px 0 0; color: #9DB3BC; } .s-chk { color: #6F8B96; }
 .std { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.8; }
+.mc-box { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--bg); border: 1px solid #2A5062; }
+.mc-box .eyebrow { margin-bottom: 6px; color: var(--amber); } .mc-box p { margin: 0; font-size: 13.5px; line-height: 1.55; }
